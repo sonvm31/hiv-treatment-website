@@ -1,0 +1,77 @@
+.manager-sidebar {
+  background: #ffffff;
+  height: 100vh;
+  position: fixed;
+  left: 0;
+  top: 80px; /* Đặt vị trí bắt đầu của sidebar bên dưới header */
+  overflow: auto;
+  box-shadow: 2px 0 8px rgba(0,0,0,0.06);
+  border-right: 1px solid #f0f0f0;
+  z-index: 900; /* Đảm bảo sidebar nằm dưới header nhưng trên các phần tử khác */
+}
+
+.sidebar-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0 8px;
+}
+
+.sidebar-menu {
+  background: #ffffff;
+  border-right: 0;
+  margin-top: 20px;
+}
+
+.sidebar-link {
+  border-radius: 5px;
+  transition: all 0.2s;
+  padding: 10px 15px !important;
+}
+
+.sidebar-link:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  transform: translateX(3px);
+}
+
+.sidebar-link.active {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-left: 3px solid #0d6efd;
+}
+
+.logout-container {
+  padding-top: 15px;
+  margin-bottom: 10px;
+}
+
+/* Thêm scrollbar tùy chỉnh cho sidebar */
+.manager-sidebar::-webkit-scrollbar {
+  width: 5px;
+}
+
+.manager-sidebar::-webkit-scrollbar-track {
+  background: #f0f0f0;
+}
+
+.manager-sidebar::-webkit-scrollbar-thumb {
+  background: #d0d0d0;
+  border-radius: 3px;
+}
+
+.manager-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #a0a0a0;
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .manager-sidebar {
+    top: 70px; /* Điều chỉnh theo chiều cao của header trên màn hình nhỏ */
+  }
+}
+
+/* Đảm bảo nút đăng xuất luôn ở dưới cùng */
+@media (min-height: 600px) {
+  .logout-container {
+    margin-top: auto;
+  }
+} 

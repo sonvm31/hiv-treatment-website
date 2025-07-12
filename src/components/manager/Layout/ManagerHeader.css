@@ -1,0 +1,113 @@
+.manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
+  background-color: #212529;
+  border-bottom: 1px solid #343a40;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  color: white;
+  height: 80px; /* Điều chỉnh chiều cao header */
+  width: 100%;
+  position: relative;
+  z-index: 1000;
+}
+
+/* Header cố định khi cuộn */
+.manager-header-fixed {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24px;
+  background: #ffffff;
+  height: 80px;
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.logo-container {
+  height: 80px;
+  display: flex;
+  align-items: center;
+}
+
+.app-logo {
+  height: 55px;
+  object-fit: contain;
+  cursor: pointer;
+}
+
+.header-title {
+  margin: 0 !important;
+  color: #333333 !important;
+  font-weight: 600 !important;
+}
+
+.header-center {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: white;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar {
+  background: #2056df !important;
+  color: #ffffff !important;
+}
+
+.user-avatar-container {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #e9ecef;
+  background-color: #fff;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.user-avatar-container:hover {
+  border-color: #0d6efd;
+  transform: scale(1.05);
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .manager-header-fixed {
+    padding: 0 16px;
+    height: 70px;
+  }
+
+  .header-title {
+    font-size: 1.2rem !important;
+  }
+
+  .logo-container {
+    height: 70px;
+  }
+
+  .app-logo {
+    height: 45px;
+  }
+
+  .user-avatar {
+    width: 40px !important;
+    height: 40px !important;
+  }
+}
