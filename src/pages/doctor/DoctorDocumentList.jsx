@@ -1,14 +1,18 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import { 
+  useEffect, 
+  useState, 
+  useContext, 
+  useRef 
+} from 'react'
 import {
   getAllDocuments,
   createDocument,
   updateDocument,
   deleteDocument,
-  searchDocuments,
   createDocumentImage,
   deleteDocumentImage,
   getDocumentImagesByDocumentId,
-} from '../../services/document.service';
+} from '../../services/document.service'
 import {
   Table,
   Button,
@@ -19,188 +23,248 @@ import {
   message,
   Spin,
   List,
-} from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, PictureOutlined, UploadOutlined } from '@ant-design/icons';
-import { EyeOutlined } from '@ant-design/icons';
-import { AuthContext } from '../../components/context/AuthContext';
-import dayjs from 'dayjs';
+} from 'antd'
+import { 
+  CKEditor 
+} from '@ckeditor/ckeditor5-react'
+import ClassicEditor from '@ckeditor/ckeditor5-build-classic'
+import { 
+  PlusOutlined, 
+  EditOutlined, 
+  DeleteOutlined, 
+  SearchOutlined, 
+  PictureOutlined, 
+  UploadOutlined,
+  EyeOutlined 
+} from '@ant-design/icons'
+import { AuthContext } from '../../components/context/AuthContext'
+import dayjs from 'dayjs'
 
 const DoctorDocumentList = () => {
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [search, setSearch] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [form] = Form.useForm();
-  const [editId, setEditId] = useState(null);
-  const [modalLoading, setModalLoading] = useState(false);
-  const { user } = useContext(AuthContext);
-  // State cho hình ảnh
-  const [imageList, setImageList] = useState([]); // {id, image} hoặc chỉ image nếu chưa lưu
-  const [newImage, setNewImage] = useState('');
-  const searchRef = useRef();
-  const debounceTimeout = useRef();
-  const [allDocuments, setAllDocuments] = useState([]); // lưu toàn bộ documents để filter
-  const fileInputRef = useRef();
-  const [previewImage, setPreviewImage] = useState(null);
-  const handlePreview = (imgSrc) => setPreviewImage(imgSrc);
+  const [documents, setDocuments] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [search, setSearch] = useState('')
+  const [modalOpen, setModalOpen] = useState(false)
+  const [form] = Form.useForm()
+  const [editId, setEditId] = useState(null)
+  const [modalLoading, setModalLoading] = useState(false)
+  const { user } = useContext(AuthContext)
+  const [imageList, setImageList] = useState([])
+  const [allDocuments, setAllDocuments] = useState([])
+  const fileInputRef = useRef()
+  const [previewImage, setPreviewImage] = useState(null)
+  const handlePreview = (imgSrc) => setPreviewImage(imgSrc)
 
   const fetchDocuments = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
-      const res = await getAllDocuments();
-      setDocuments(res.data);
-      setAllDocuments(res.data);
-    } catch (err) {
-      message.error('Lỗi khi tải danh sách document');
+      const res = await getAllDocuments()
+      const myDocs = (res.data || []).filter(doc => doc.doctor?.id === user?.id)
+      // Sort from newest to oldest by creation date
+      const sortedDocs = myDocs.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0)
+        const dateB = new Date(b.createdAt || 0)
+        return dateB - dateA // newest first
+      })
+      setDocuments(sortedDocs)
+      setAllDocuments(sortedDocs)
+    } catch {
+      message.error('Error loading document list')
     }
-    setLoading(false);
-  };
+    setLoading(false)
+  }
 
   useEffect(() => {
-    fetchDocuments();
-  }, []);
+    fetchDocuments()
+  }, [])
 
-  // Lọc realtime khi nhập search (không gọi API search)
+  // Filtered data when search, no call API
   const handleSearchChange = (e) => {
-    const value = e.target.value;
-    setSearch(value);
+    const value = e.target.value
+    setSearch(value)
     if (!value || value.trim() === '') {
-      setDocuments(allDocuments);
+      setDocuments(allDocuments)
     } else {
-      const term = value.toLowerCase();
+      const term = value.toLowerCase()
       const filtered = allDocuments.filter(doc =>
         (doc.title && doc.title.toLowerCase().includes(term)) ||
         (doc.doctor && doc.doctor.fullName && doc.doctor.fullName.toLowerCase().includes(term))
-      );
-      setDocuments(filtered);
+      )
+      // Maintain sort order from newest to oldest when searching
+      const sortedFiltered = filtered.sort((a, b) => {
+        const dateA = new Date(a.createdAt || 0)
+        const dateB = new Date(b.createdAt || 0)
+        return dateB - dateA // newest first
+      })
+      setDocuments(sortedFiltered)
     }
-  };
+  }
 
   const openCreateModal = () => {
-    form.resetFields();
-    setEditId(null);
-    setImageList([]);
-    setModalOpen(true);
-  };
+    form.resetFields()
+    setEditId(null)
+    setImageList([])
+    setModalOpen(true)
+  }
 
   const openEditModal = async (doc) => {
-    form.setFieldsValue({ title: doc.title, content: doc.content });
-    setEditId(doc.id);
-    setModalOpen(true);
-    // Load ảnh hiện tại
+    form.setFieldsValue({ title: doc.title, content: doc.content })
+    setEditId(doc.id)
+    setModalOpen(true)
     try {
-      const res = await getDocumentImagesByDocumentId(doc.id);
-      setImageList(res.data.map(img => ({ id: img.id, image: img.image })));
+      const res = await getDocumentImagesByDocumentId(doc.id)
+      setImageList(res.data.map(img => ({ id: img.id, image: img.image })))
     } catch {
-      setImageList([]);
+      setImageList([])
     }
-  };
+  }
 
   const handleDelete = async (id) => {
-    setLoading(true);
+    setLoading(true)
     try {
-      await deleteDocument(id);
-      message.success('Xóa document thành công');
-      fetchDocuments();
-    } catch (err) {
-      message.error('Lỗi khi xóa document');
-    }
-    setLoading(false);
-  };
+        // Lấy danh sách ảnh liên quan
+      const images = await getDocumentImagesByDocumentId(id);
 
-  // Thêm ảnh từ file
+        // Xóa từng ảnh
+      for (const image of images.data) {
+        await deleteDocumentImage(image.id);
+      }
+        // Xóa document
+      await deleteDocument(id)
+      message.success('Xóa document thành công')
+      fetchDocuments()
+    } catch {
+      message.error('Lỗi khi xóa document')
+    }
+    setLoading(false)
+  }
+
   const handleFileChange = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
     reader.onload = () => {
-      const base64 = reader.result;
+      const base64 = reader.result
       if (!imageList.some(img => img.image === base64)) {
-        setImageList([...imageList, { image: base64 }]);
+        setImageList([...imageList, { image: base64 }])
       } else {
-        message.warning('Ảnh này đã tồn tại trong danh sách!');
-      }
-    };
-    reader.readAsDataURL(file);
-    // Reset input để chọn lại cùng file nếu muốn
-    e.target.value = '';
-  };
-
-  // Thêm ảnh từ clipboard (paste)
-  const handlePaste = (e) => {
-    const items = e.clipboardData && e.clipboardData.items;
-    if (!items) return;
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (item.type.indexOf('image') !== -1) {
-        const file = item.getAsFile();
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = reader.result;
-          if (!imageList.some(img => img.image === base64)) {
-            setImageList(prev => [...prev, { image: base64 }]);
-            message.success('Đã dán ảnh từ clipboard!');
-          } else {
-            message.warning('Ảnh này đã tồn tại trong danh sách!');
-          }
-        };
-        reader.readAsDataURL(file);
-        break; // chỉ lấy ảnh đầu tiên
+        message.warning('This image already exists in the list!')
       }
     }
-  };
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
 
-  // Xử lý xóa url ảnh khỏi danh sách tạm (nếu là ảnh đã lưu thì xóa ở backend luôn)
+  // Add image from clipboard
+  const handlePaste = (e) => {
+    const items = e.clipboardData && e.clipboardData.items
+    if (!items) return
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.type.indexOf('image') !== -1) {
+        const file = item.getAsFile()
+        const reader = new FileReader()
+        reader.onload = () => {
+          const base64 = reader.result
+                  if (!imageList.some(img => img.image === base64)) {
+          setImageList(prev => [...prev, { image: base64 }])
+          message.success('Image pasted from clipboard!')
+        } else {
+          message.warning('This image already exists in the list!')
+        }
+        }
+        reader.readAsDataURL(file)
+        break
+      }
+    }
+  }
+
   const handleRemoveImage = async (img) => {
     if (img.id) {
-      // Ảnh đã lưu, xóa ở backend
+      // Delete image in database
       try {
-        await deleteDocumentImage(img.id);
-        setImageList(imageList.filter(i => i.image !== img.image));
-        message.success('Đã xóa ảnh');
+        await deleteDocumentImage(img.id)
+        setImageList(imageList.filter(i => i.image !== img.image))
+        message.success('Đã xóa ảnh')
       } catch {
-        message.error('Lỗi khi xóa ảnh');
+        message.error('Lỗi khi xóa ảnh')
       }
     } else {
-      // Ảnh mới thêm, chỉ xóa ở frontend
-      setImageList(imageList.filter(i => i.image !== img.image));
+      // Delete image that has not been saved to database
+      setImageList(imageList.filter(i => i.image !== img.image))
     }
-  };
+  }
+
+  // Function to clean HTML content from CKEditor
+  const cleanHtmlContent = (htmlContent) => {
+    if (!htmlContent) return ''
+    
+    // delete <p></p> empty or only contain whitespace
+    let cleaned = htmlContent.replace(/<p>\s*<\/p>/g, '')
+    
+    // delete <p> and </p> if the content is only text
+    // Check if it's just simple text
+    const tempDiv = document.createElement('div')
+    tempDiv.innerHTML = cleaned
+    
+    // if there is only one p tag and no other html tags
+    if (tempDiv.children.length === 1 && tempDiv.children[0].tagName === 'P') {
+      const pContent = tempDiv.children[0].innerHTML
+      // if the content in p does not contain other html tags
+      if (!/<[^>]*>/g.test(pContent)) {
+        return pContent.trim()
+      }
+    }
+    
+    // delete empty <p> tags
+    cleaned = cleaned.replace(/<p>\s*<\/p>/g, '')
+    
+    // delete <br> at the end
+    cleaned = cleaned.replace(/<br\s*\/?>\s*$/g, '')
+    
+    return cleaned.trim()
+  }
 
   const handleModalOk = async () => {
     try {
-      setModalLoading(true);
-      const values = await form.validateFields();
-      let documentId = editId;
+      setModalLoading(true)
+      const values = await form.validateFields()
+      
+      // Clean HTML content before saving
+      const cleanedValues = {
+        ...values,
+        content: cleanHtmlContent(values.content)
+      }
+      
+      let documentId = editId
       if (editId) {
-        await updateDocument(editId, values);
-        message.success('Cập nhật document thành công');
+        await updateDocument(editId, cleanedValues)
+        message.success('Document updated successfully')
       } else {
-        // Tạo document trước
-        const res = await createDocument(values, user?.id);
-        documentId = res.data?.id || null;
-        message.success('Tạo mới document thành công');
-        // Nếu backend không trả về id, cần reload danh sách và lấy id mới nhất
-        if (!documentId) {
-          await fetchDocuments();
-          const latest = documents[0];
-          documentId = latest?.id;
+        const res = await createDocument(cleanedValues, user?.id)
+
+        let documentId
+        const match = res?.data?.message?.match(/ID:\s*(\d+)/)
+        if (match && match[1]) {
+          documentId = parseInt(match[1], 10)
+        } else {
+          throw new Error('Không thể lấy ID từ phản hồi của backend.')
         }
-      }
-      // Xử lý ảnh: thêm mới các ảnh chưa có id
-      for (const img of imageList) {
+
+        for (const img of imageList) {
         if (!img.id && documentId) {
-          await createDocumentImage({ image: img.image, documentId });
+          await createDocumentImage({ image: img.image, documentId })
         }
       }
-      setModalOpen(false);
-      fetchDocuments();
+      }
+      setModalOpen(false)
+      fetchDocuments()
     } catch (err) {
-      if (err && err.errorFields) return; // validation error
-      message.error('Lỗi khi lưu document hoặc ảnh');
+      if (err && err.errorFields) return
+      message.error('Lỗi khi lưu document hoặc ảnh')
     }
-    setModalLoading(false);
-  };
+    setModalLoading(false)
+  }
 
   const columns = [
     {
@@ -240,6 +304,7 @@ const DoctorDocumentList = () => {
             icon={<EditOutlined />}
             style={{ marginRight: 8 }}
             onClick={() => openEditModal(record)}
+            type='primary'
           >
             Sửa
           </Button>
@@ -249,12 +314,12 @@ const DoctorDocumentList = () => {
             okText="Xóa"
             cancelText="Hủy"
           >
-            <Button danger icon={<DeleteOutlined />}>Xóa</Button>
+            <Button className='custom-delete-btn' icon={<DeleteOutlined />}>Xóa</Button>
           </Popconfirm>
         </>
       ),
     },
-  ];
+  ]
 
   return (
     <div style={{ padding: 24 }}>
@@ -309,10 +374,42 @@ const DoctorDocumentList = () => {
             name="content"
             rules={[{ required: true, message: 'Vui lòng nhập nội dung' }]}
           >
-            <Input.TextArea rows={5} placeholder="Nhập nội dung" />
+            <CKEditor
+              editor={ClassicEditor}
+              data={form.getFieldValue('content')}
+              config={{
+                // Cấu hình để giảm thiểu HTML không cần thiết
+                enterMode: 2, // BR tags thay vì P tags
+                shiftEnterMode: 1, // P tags cho Shift+Enter
+                autoParagraph: false, // Không tự động tạo P tags
+                fillEmptyBlocks: false, // Không fill empty blocks
+                removeEmptyElements: true, // Loại bỏ elements rỗng
+                // Cấu hình toolbar đơn giản hơn
+                toolbar: [
+                  'heading',
+                  '|',
+                  'bold',
+                  'italic',
+                  'underline',
+                  'strikethrough',
+                  '|',
+                  'bulletedList',
+                  'numberedList',
+                  '|',
+                  'link',
+                  'blockQuote',
+                  '|',
+                  'undo',
+                  'redo'
+                ]
+              }}
+              onChange={(event, editor) => {
+                const data = editor.getData()
+                form.setFieldValue('content', data)
+              }}
+            />
           </Form.Item>
         </Form>
-        {/* Quản lý hình ảnh */}
         <div
           style={{ marginTop: 16 }}
           tabIndex={0}
@@ -344,7 +441,7 @@ const DoctorDocumentList = () => {
                   >
                     Xem
                   </Button>,
-                  <Button danger size="small" onClick={() => handleRemoveImage(img)}>Xóa</Button>
+                  <Button className='custom-delete-btn' size="small" onClick={() => handleRemoveImage(img)}>Xóa</Button>
                 ]}
               >
                 <img
@@ -370,7 +467,6 @@ const DoctorDocumentList = () => {
         </div>
       </Modal>
     </div>
-  );
-};
-
-export default DoctorDocumentList; 
+  )
+}
+export default DoctorDocumentList

@@ -18,21 +18,29 @@ import {
   UserOutlined,
   LogoutOutlined,
   SettingOutlined,
-  BellOutlined,
-  UserAddOutlined
+  BellOutlined
 } from '@ant-design/icons';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useContext } from 'react';
+import {
+  Link,
+  useLocation,
+  useNavigate
+} from 'react-router-dom';
+import {
+  useState,
+  useEffect,
+  useContext
+} from 'react';
 
 import appLogo from '../../assets/appLogo.png';
 import '../../styles/client/AppHeader.css';
 import { AuthContext } from '../context/AuthContext';
-import { logoutAPI } from '../../services/api.service';
+
 import {
   getNotificationsByUserId,
   updateNotification
 } from '../../services/notification.service';
-import dayjs from 'dayjs';
+import { logoutAPI } from '../../services/auth.service';
+import '../../styles/global.css'
 
 const { Header } = Layout;
 const { Text } = Typography;
@@ -40,6 +48,7 @@ const { Text } = Typography;
 const AppHeader = () => {
   const location = useLocation();
   const navigate = useNavigate();
+
   const { user, setUser } = useContext(AuthContext);
 
   const [activeSection, setActiveSection] = useState('home');
@@ -48,6 +57,12 @@ const AppHeader = () => {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
   const unreadCount = notifications.filter(n => !n.read).length;
+
+  useEffect(() => {
+    if (location.pathname !== '/') {
+      setActiveSection('');
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -80,6 +95,7 @@ const AppHeader = () => {
   useEffect(() => {
     let intervalId;
 
+    // Poll notifications every 5 second
     const pollNotifications = async () => {
       try {
         const res = await getNotificationsByUserId(user.id);
@@ -96,12 +112,12 @@ const AppHeader = () => {
           setNotifications(latest);
         }
       } catch (error) {
-        console.error("Lỗi khi polling:", error);
+        message.error("Lỗi khi cập nhật thông báo:", error);
       }
     };
 
     if (user?.id) {
-      intervalId = setInterval(pollNotifications, 10000);
+      intervalId = setInterval(pollNotifications, 5000);
     }
 
     return () => clearInterval(intervalId);
@@ -117,6 +133,7 @@ const AppHeader = () => {
     }
   };
 
+  // Change notification display when it's clicked
   const handleNotificationClick = async (notification) => {
     if (!notification.read) {
       await updateNotification(notification.id, { ...notification, isRead: true });
@@ -126,6 +143,7 @@ const AppHeader = () => {
     }
   };
 
+  // Scroll the menu to chosen option
   const scrollToSection = (sectionId) => {
     const section = document.getElementById(sectionId);
     if (section) {
@@ -149,13 +167,16 @@ const AppHeader = () => {
     { key: 'appointments', label: 'Lịch hẹn', path: '/appointment' },
   ];
 
-  const handleMenuClick = (scrollTo) => {
+  // Naviagte to right menu option when it's clicked
+  const handleMenuClick = (scrollTo, key) => {
     if (location.pathname !== '/') {
       navigate('/');
       setTimeout(() => {
+        setActiveSection(key);
         scrollToSection(scrollTo);
       }, 100);
     } else {
+      setActiveSection(key);
       scrollToSection(scrollTo);
     }
   };
@@ -164,14 +185,15 @@ const AppHeader = () => {
     items.map((item) => ({
       key: item.key,
       label: item.scrollTo ? (
-        <a onClick={() => handleMenuClick(item.scrollTo)}>{item.label}</a>
+        <a onClick={() => handleMenuClick(item.scrollTo, item.key)}>{item.label}</a>
       ) : (
-        <Link to={item.path} onClick={() => window.scrollTo(0, 0)}>
+        <Link to={item.path} onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           {item.label}
         </Link>
       )
     }));
 
+  // Change display of active menu option
   const getActiveMenu = (items) => {
     return (
       items.find(
@@ -206,13 +228,6 @@ const AppHeader = () => {
         <Menu
           mode="horizontal"
           selectedKeys={[selectedMenuKey]}
-          onClick={({ key }) => {
-            const clickedItem = topMenuItems.find(item => item.key === key);
-            if (clickedItem?.scrollTo) {
-              setActiveSection(key);
-              handleMenuClick(clickedItem.scrollTo);
-            }
-          }}
           items={mapMenuItems(topMenuItems)}
           className="main-menu"
         />
@@ -224,38 +239,30 @@ const AppHeader = () => {
                 content={
                   <Spin spinning={loading}>
                     <List
-                      dataSource={[...notifications].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))}
+                      // Only display first 10 notifications
+                      dataSource={
+                        [...notifications]
+                          .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                          .slice(0, 10)
+                      }
                       locale={{ emptyText: 'Không có thông báo' }}
                       renderItem={(item) => (
                         <List.Item
                           style={{
-                            background: item.read ? '#fff' : '#f0faff',
-                            padding: 12,
-                            cursor: 'pointer',
-                            transition: 'background 0.3s'
+                            background: item.read ? '#fff' : '#e6f7ff',
+                            fontWeight: item.read ? 'normal' : 'bold',
+                            cursor: 'pointer'
                           }}
                           onClick={() => handleNotificationClick(item)}
-                          className="notification-item"
                         >
-                          <List.Item.Meta
-                            title={
-                              <Space>
-                                <BellOutlined style={{ color: '#1890ff' }} />
-                                <Text strong>{item.title}</Text>
-                              </Space>
-                            }
-                            description={
-                              <div style={{ fontSize: 13, color: '#595959' }}>
-                                <div>{item.message}</div>
-                                <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: 4 }}>
-                                  {dayjs(item.createdAt).format('HH:mm - DD/MM/YYYY')}
-                                </div>
-                              </div>
-                            }
-                          />
+                          <div>
+                            <span>{item.title}</span>
+                            <div style={{ fontSize: 12, color: '#888' }}>{item.message}</div>
+                            <div style={{ fontSize: 10, color: '#aaa' }}>{item.createdAt}</div>
+                          </div>
                         </List.Item>
                       )}
-                      style={{ width: 320, maxHeight: 400, overflow: 'auto' }}
+                      style={{ width: 300, maxHeight: 400, overflow: 'auto' }}
                     />
                   </Spin>
                 }
@@ -298,32 +305,18 @@ const AppHeader = () => {
               </Popconfirm>
             </Space>
           ) : (
-            <Space size="small" className="auth-buttons">
+            <Space size="middle" className="auth-buttons">
               <Link to="/login">
-                <Button
-                  icon={<UserOutlined style={{ fontSize: '18px' }} />}
-                  type='text'
-                >
-                  Đăng nhập
-                </Button>
+                <Button type='text'>Đăng nhập</Button>
               </Link>
-
               <Link to="/register">
-                <Button
-                  icon={<UserAddOutlined style={{ fontSize: '18px' }} />}
-                  className='btn-sign-up'
-                >
-                  Đăng ký
-                </Button>
+                <Button className='btn-sign-up'>Đăng ký</Button>
               </Link>
             </Space>
-
-
           )}
         </div>
       </div>
     </Header>
   );
 };
-
 export default AppHeader;

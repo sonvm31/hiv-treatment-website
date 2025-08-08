@@ -8,9 +8,9 @@ import listPlugin from '@fullcalendar/list'; // Thêm plugin hiển thị dạng
 import viLocale from '@fullcalendar/core/locales/vi';
 import moment from 'moment';
 import { BsChevronLeft, BsChevronRight, BsCalendarWeek, BsCalendarMonth, BsListUl } from 'react-icons/bs';
-import './Calendar.css';
-import './CustomButtons.css';
 import { ScheduleStatus, SlotTimes } from '../../../types/schedule.types';
+import '../../../styles/manager/Calendar.css';
+import '../../../styles/manager/CustomButtons.css';
 
 const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
     // Thay đổi view mặc định thành dayGridMonth
@@ -35,7 +35,6 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
     
     // Debug: Ghi log events để kiểm tra
     useEffect(() => {
-        console.log('Calendar received events:', validEvents);
     }, [validEvents]);
     
     // Cập nhật danh sách các ngày trong tuần hiện tại
@@ -49,7 +48,6 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
             }
             
             setCurrentWeekDays(days);
-            console.log('Current week days:', days);
         }
     }, [view, currentDate]);
     
@@ -108,10 +106,19 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
         }, 0);
     };
 
-    const getStatusColor = (status) => {
+    const getStatusColor = (status, currentPatients = 0, maxPatients = 5) => {
+        if (status === ScheduleStatus.AVAILABLE) {
+            // Gradient màu từ xanh lá (trống hoàn toàn) đến vàng (gần đầy) đến đỏ (đã đầy)
+            if (currentPatients === 0) {
+                return '#28a745'; // success - xanh lá (lịch trống hoàn toàn)
+            } else if (currentPatients < maxPatients) {
+                return '#ffc107'; // warning - vàng (có bệnh nhân nhưng chưa đầy)
+            } else {
+                return '#dc3545'; // danger - đỏ (đã đầy)
+            }
+        }
+        
         switch (status) {
-            case ScheduleStatus.AVAILABLE:
-                return '#28a745'; // success - xanh lá (lịch trống)
             case 'cancelled':
                 return '#dc3545'; // danger - đỏ (đã hủy)
             case 'active':
@@ -135,7 +142,6 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
         
         return validEvents.map(event => {
             // Debug: Ghi log từng sự kiện
-            console.log('Processing event:', event);
             
             // Tạo đối tượng date từ date và slot
             const eventDate = event.date;
@@ -149,12 +155,19 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
             const endMoment = moment(startDateTime).add(30, 'minutes');
             const endDateTime = endMoment.format('YYYY-MM-DDTHH:mm:ss');
             
+            // Lấy thông tin số lượng bệnh nhân
+            const currentPatients = event.currentPatients !== undefined ? event.currentPatients : 0;
+            const maxPatients = event.maxPatients !== undefined ? event.maxPatients : 5;
+            
+            // Lấy màu sắc dựa trên trạng thái và số lượng bệnh nhân
+            const color = getStatusColor(event.status, currentPatients, maxPatients);
+            
             return {
                 id: event.id,
                 title: event.title || 'Không xác định',
                 start: startDateTime,
                 end: endDateTime,
-                color: getStatusColor(event.status),
+                color: color,
                 extendedProps: {
                     ...event
                 },
@@ -200,8 +213,13 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
         // Lấy thông tin khung giờ
         const slotTime = eventData.slot ? eventData.slot.substring(0, 5) : '';
         
-        // Lấy màu sắc theo trạng thái
-        const statusColor = getStatusColor(eventData.status);
+        // Lấy thông tin số lượng bệnh nhân
+        const currentPatients = eventData.currentPatients !== undefined ? eventData.currentPatients : 0;
+        const maxPatients = eventData.maxPatients !== undefined ? eventData.maxPatients : 5;
+        const patientInfo = `${currentPatients}/${maxPatients}`;
+        
+        // Lấy màu sắc theo trạng thái và số lượng bệnh nhân
+        const statusColor = getStatusColor(eventData.status, currentPatients, maxPatients);
         
         // Kiểm tra loại view hiện tại
         const viewType = eventInfo.view.type;
@@ -218,11 +236,16 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
                         <div className="week-event-title">
                             {eventData.doctorName || 'Không có tên'}
                         </div>
+                        <div className="d-flex justify-content-between">
                         {roomInfo && (
                             <div className="week-event-room">
                                 {roomInfo}
                             </div>
                         )}
+                            <div className="week-event-patients">
+                                {patientInfo}
+                            </div>
+                        </div>
                     </div>
                 </div>
             );
@@ -234,6 +257,7 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
                     <div className="list-event-info">
                         {slotTime && <span className="list-event-time">{slotTime}</span>}
                         {roomInfo && <span className="list-event-room">{roomInfo}</span>}
+                        <span className="list-event-patients">{patientInfo}</span>
                     </div>
                 </div>
             );
@@ -242,7 +266,10 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
             return (
                 <div className="time-event-content">
                     <div className="time-event-title">{eventData.doctorName || 'Không có tên'}</div>
+                    <div className="d-flex justify-content-between">
                     {roomInfo && <div className="time-event-room">{roomInfo}</div>}
+                        <div className="time-event-patients">{patientInfo}</div>
+                    </div>
                 </div>
             );
         }
@@ -253,7 +280,6 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
         if (calendarRef.current) {
             const calendarApi = calendarRef.current.getApi();
             calendarApi.removeAllEvents();
-            console.log('All events cleared from calendar');
         }
     }, []);
 
@@ -268,7 +294,6 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
                     localStorageKeys.forEach(key => {
                         if (key.includes('fullcalendar') || key.includes('fc-') || key.includes('calendar') || 
                             key.includes('event') || key.includes('schedule')) {
-                            console.log('Removing from localStorage:', key);
                             localStorage.removeItem(key);
                         }
                     });
@@ -284,7 +309,6 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
                     sessionStorageKeys.forEach(key => {
                         if (key.includes('fullcalendar') || key.includes('fc-') || key.includes('calendar') || 
                             key.includes('event') || key.includes('schedule')) {
-                            console.log('Removing from sessionStorage:', key);
                             sessionStorage.removeItem(key);
                         }
                     });
@@ -298,7 +322,6 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
                 clearLocalStorage();
                 clearSessionStorage();
                 
-                console.log('All FullCalendar storage cleared');
             } catch (error) {
                 console.error('Error clearing storage:', error);
             }
@@ -309,7 +332,6 @@ const Calendar = ({ events = [], onDateSelect, onEventSelect }) => {
     const forceRerender = useCallback(() => {
         setCalendarKey(prevKey => {
             const newKey = Date.now();
-            console.log('Forcing calendar re-render with new key:', newKey);
             return newKey;
         });
     }, []);

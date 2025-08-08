@@ -1,16 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { message } from 'antd';
+import {
+  useState,
+  useEffect
+} from 'react';
+import {
+  Link
+} from 'react-router-dom';
 import '../../styles/doctor-profile/DoctorProfileSearchPage.css';
-import { fetchAccountByRoleAPI, fetchDoctorProfileAPI } from '../../services/api.service';
-
-// Dùng ảnh từ thư mục public
 import defaultDoctorImage from '../../assets/doctor.png';
+import {
+  fetchDoctorProfileAPI
+} from '../../services/doctorProfile.service';
+import {
+  fetchAccountByRoleAPI
+} from '../../services/user.service';
 
 const DoctorsSearchPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [doctorAccounts, setDoctorAccounts] = useState([]);
-  const [doctorProfiles, setDoctorProfiles] = useState([]);
   const [mergedDoctors, setMergedDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -28,12 +33,6 @@ const DoctorsSearchPage = () => {
 
       const doctors = accountRes?.data || [];
       const profiles = profileRes?.data || [];
-
-      setDoctorAccounts(doctors);
-      setDoctorProfiles(profiles);
-
-      console.log(doctors)
-      console.log(profiles)
 
       const merged = doctors.map(account => {
         const profile = profiles.find(p => p.doctor.id === account.id);
@@ -55,16 +54,26 @@ const DoctorsSearchPage = () => {
     }
   };
 
+  const normalizeString = (str) => {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  };
 
   // Filter doctors based on search term
   const filteredDoctors = mergedDoctors.filter((doctors) =>
-    doctors.fullName.toLowerCase().includes(searchTerm.toLowerCase())
+    normalizeString(doctors.fullName).includes(normalizeString(searchTerm))
   );
 
   useEffect(() => {
     // Scroll to top when the component mounts
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+
 
   return (
     <section className="doctor-section" id="doctors-top">
@@ -93,10 +102,10 @@ const DoctorsSearchPage = () => {
               <div className="doctor-info">
                 <h3>{mergedDoctors.fullName}</h3>
                 <p>
-                    🕒 {mergedDoctors.startYear
-                      ? `${new Date().getFullYear() - Number(mergedDoctors.startYear)} năm kinh nghiệm`
-                      : 'Chưa rõ năm kinh nghiệm'}
-                  </p>
+                  🕒 {mergedDoctors.startYear
+                    ? `${new Date().getFullYear() - Number(mergedDoctors.startYear)} năm kinh nghiệm`
+                    : 'Chưa rõ năm kinh nghiệm'}
+                </p>
                 <p>{mergedDoctors.qualifications}</p>
                 <Link to={`/booking?doctorId=${mergedDoctors.id}`} className="btn-primary">
                   Đặt lịch
@@ -111,5 +120,4 @@ const DoctorsSearchPage = () => {
     </section>
   );
 };
-
 export default DoctorsSearchPage;

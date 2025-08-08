@@ -1,4 +1,8 @@
-import React, { useState, useEffect, useContext } from 'react';
+import {
+  useState,
+  useEffect,
+  useContext
+} from 'react';
 import {
   Button,
   Form,
@@ -13,25 +17,28 @@ import {
   Avatar,
   Tooltip,
 } from 'antd';
-import { SaveOutlined, UserOutlined, CameraOutlined } from '@ant-design/icons';
-import { useOutletContext } from 'react-router-dom';
 import {
-  fetchAccountAPI,
+  SaveOutlined
+} from '@ant-design/icons';
+import {
   fetchDoctorByIdAPI,
   updateDoctorProfileAPI,
-  updateUserAPI,
-} from '../../services/api.service';
-import { AuthContext } from '../context/AuthContext';
+} from '../../services/doctorProfile.service';
+import {
+  fetchAccountAPI,
+} from '../../services/auth.service';
+import {
+  updateUserAPI
+} from '../../services/user.service';
+import {
+  AuthContext
+} from '../context/AuthContext';
 
 const { Title } = Typography;
 
-const DoctorPersonalProfile = () => {
+const DoctorPersonalProfile = ({ validateField }) => {
   const { user, setUser } = useContext(AuthContext);
-
-  const [avatarUrl, setAvatarUrl] = useState(null);
-  const fileInputRef = React.useRef(null);
-  const [hover, setHover] = useState(false);
-
+  const [errors, setErrors] = useState({});
   const [doctorProfile, setDoctorProfile] = useState({
     id: '',
     startYear: '',
@@ -41,7 +48,6 @@ const DoctorPersonalProfile = () => {
     qualifications: '',
     doctorId: ''
   });
-
   const [editableUser, setEditableUser] = useState({
     id: '',
     fullName: '',
@@ -79,25 +85,30 @@ const DoctorPersonalProfile = () => {
         isVerified: user.isVerified || false,
         role: user.role?.name || '',
       });
-      setAvatarUrl(user.avatar || null);
       loadDoctorProfile(user.id);
     }
   }, [user]);
 
-  // Xử lý chọn file avatar
-  const handleAvatarChange = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64String = e.target.result;
-      setAvatarUrl(base64String);
-      setEditableUser((prev) => ({
-        ...prev,
-        avatar: base64String,
-      }));
+  const handleChange = (field, value) => {
+    const updatedUser = {
+      ...editableUser,
+      [field]: value,
     };
-    reader.readAsDataURL(file);
+
+    let newErrors = { ...errors };
+
+    if (field === "password") {
+      newErrors.password = validateField("newPassword", value);
+    } else if (field === "confirmPassword") {
+      newErrors.confirmPassword = validateField("confirmPassword", value, {
+        newPassword: updatedUser.password,
+      });
+    } else {
+      newErrors[field] = validateField(field, value, updatedUser);
+    }
+
+    setEditableUser(updatedUser);
+    setErrors(newErrors);
   };
 
   const loadDoctorProfile = async (doctorId) => {
@@ -121,8 +132,7 @@ const DoctorPersonalProfile = () => {
           description: 'Không thể tải thông tin bác sĩ',
         });
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
       notification.error({
         message: 'Hệ thống',
         showProgress: true,
@@ -135,7 +145,6 @@ const DoctorPersonalProfile = () => {
   const handleUpdate = async () => {
     try {
       const isChangingPassword = editableUser.password.trim().length > 0;
-
       if (isChangingPassword && editableUser.password !== editableUser.confirmPassword) {
         message.error('Mật khẩu xác nhận không khớp');
         return;
@@ -189,8 +198,7 @@ const DoctorPersonalProfile = () => {
           description: 'Cập nhật thông tin không thành công',
         });
       }
-    } catch (error) {
-      console.error(error);
+    } catch {
       message.error('Cập nhật thất bại');
     }
   };
@@ -215,33 +223,32 @@ const DoctorPersonalProfile = () => {
         }
       >
         <Form layout="vertical">
-          {/* Đã xóa avatar khỏi form, chỉ giữ lại các trường thông tin cá nhân */}
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item label="Email">
+              <Form.Item
+                label="Email"
+                validateStatus={errors.email ? 'error' : ''}
+                help={errors.email}
+              >
                 <Input
                   value={editableUser.email}
-                  onChange={(e) =>
-                    setEditableUser((prev) => ({
-                      ...prev,
-                      email: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => handleChange('email', e.target.value)}
                 />
               </Form.Item>
+
             </Col>
             <Col span={12}>
-              <Form.Item label="Số điện thoại">
+              <Form.Item
+                label="Số điện thoại"
+                validateStatus={errors.phoneNumber ? 'error' : ''}
+                help={errors.phoneNumber}
+              >
                 <Input
                   value={editableUser.phoneNumber}
-                  onChange={(e) =>
-                    setEditableUser((prev) => ({
-                      ...prev,
-                      phoneNumber: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => handleChange('phoneNumber', e.target.value)}
                 />
               </Form.Item>
+
             </Col>
           </Row>
 
@@ -260,15 +267,14 @@ const DoctorPersonalProfile = () => {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="Mật khẩu mới">
+              <Form.Item
+                label="Mật khẩu mới"
+                validateStatus={errors.password ? 'error' : ''}
+                help={errors.password}
+              >
                 <Input.Password
                   value={editableUser.password}
-                  onChange={(e) =>
-                    setEditableUser((prev) => ({
-                      ...prev,
-                      password: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => handleChange('password', e.target.value)}
                   placeholder="Chỉ nhập nếu muốn thay đổi"
                 />
               </Form.Item>
@@ -290,15 +296,14 @@ const DoctorPersonalProfile = () => {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="Xác nhận mật khẩu">
+              <Form.Item
+                label="Xác nhận mật khẩu"
+                validateStatus={errors.confirmPassword ? 'error' : ''}
+                help={errors.confirmPassword}
+              >
                 <Input.Password
                   value={editableUser.confirmPassword}
-                  onChange={(e) =>
-                    setEditableUser((prev) => ({
-                      ...prev,
-                      confirmPassword: e.target.value,
-                    }))
-                  }
+                  onChange={(e) => handleChange('confirmPassword', e.target.value)}
                   placeholder="Nhập lại mật khẩu"
                 />
               </Form.Item>
@@ -321,6 +326,7 @@ const DoctorPersonalProfile = () => {
                 />
               </Form.Item>
             </Col>
+
             <Col span={12}>
               <Form.Item label="Trình độ chuyên môn">
                 <Input
@@ -352,6 +358,7 @@ const DoctorPersonalProfile = () => {
                 />
               </Form.Item>
             </Col>
+
             <Col span={12}>
               <Form.Item label="Bằng cấp chuyên môn">
                 <Input
@@ -385,5 +392,4 @@ const DoctorPersonalProfile = () => {
     </div>
   );
 };
-
 export default DoctorPersonalProfile;

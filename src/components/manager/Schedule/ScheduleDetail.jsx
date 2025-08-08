@@ -1,12 +1,20 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Button, Form, Alert, Row, Col, Spinner, Badge } from 'react-bootstrap';
+import { useState, useEffect } from 'react';
+import { Modal, Button, Form, Row, Col, Spinner, Badge } from 'react-bootstrap';
+import { Divider, message, notification } from 'antd';
 import { ScheduleStatus, SlotTimes, StatusMapping } from '../../../types/schedule.types';
 import moment from 'moment';
-import { deleteScheduleAPI, updateScheduleAPI } from '../../../services/api.service';
-import './ScheduleDetail.css';
-import { BsCalendarWeek, BsClock, BsDoorOpen, BsPerson, BsBriefcase } from 'react-icons/bs';
+import { BsCalendarWeek, BsClock, BsDoorOpen, BsPerson, BsBriefcase, BsPersonPlus, BsList, BsPersonDash } from 'react-icons/bs';
+import { 
+    deleteScheduleAPI, 
+    bulkUpdateScheduleByDoctorAndDateAPI,
+    bulkDeleteSchedulesByDoctorAndDateAPI,  
+    updateScheduleStatusAPI,
+    getSchedulesByDoctorDateAndSlotAPI
+} from '../../../services/schedule.service';
+import '../../../styles/manager/ScheduleDetail.css';
+import axios from 'axios';
 
-const ScheduleDetail = ({ show, onHide, schedule, onUpdate, onDelete, onShowToast }) => {
+const ScheduleDetail = ({ show, onHide, schedule, onUpdate, onDelete, onShowToast, onRefreshData }) => {
     const [formData, setFormData] = useState({
         id: '',
         doctorId: '',
@@ -16,39 +24,23 @@ const ScheduleDetail = ({ show, onHide, schedule, onUpdate, onDelete, onShowToas
         slot: '',
         roomCode: '',
         original_status: ScheduleStatus.AVAILABLE,
-        shiftType: null // Thêm trường thông tin ca làm việc
+        currentPatients: 0, 
+        maxPatients: 5 
     });
     const [loading, setLoading] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const [deleting, setDeleting] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [selectedSchedule, setSelectedSchedule] = useState(null);
-    const [schedules, setSchedules] = useState([]);
-
-    // Sử dụng SlotTimes từ schedule.types.js
+    const [showSubSlots, setShowSubSlots] = useState(false);
+    const [subSlots, setSubSlots] = useState([]);
+    const [loadingSubSlots, setLoadingSubSlots] = useState(false);
+    const [processingSubSlot, setProcessingSubSlot] = useState(null); 
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [selectedSubSlotToCancel, setSelectedSubSlotToCancel] = useState(null);
+    const [processingCancel, setProcessingCancel] = useState(false);
     const timeSlots = SlotTimes;
-    
-    // Định nghĩa ca sáng và ca chiều
-    const morningShiftSlots = timeSlots.filter(slot => 
-        ['08:00:00', '09:00:00', '10:00:00', '11:00:00'].includes(slot.value)
-    );
-    
-    const afternoonShiftSlots = timeSlots.filter(slot => 
-        ['13:00:00', '14:00:00', '15:00:00', '16:00:00'].includes(slot.value)
-    );
 
     useEffect(() => {
         if (schedule) {
-            console.log('ScheduleDetail: Received schedule data:', schedule);
-            
-            // Xác định shiftType từ trường type (theo phản hồi từ BE)
-            let shiftTypeValue = null;
-            if (schedule.type === 'morning' || schedule.type === 'afternoon') {
-                shiftTypeValue = schedule.type;
-            } else if (schedule.shiftType) {
-                shiftTypeValue = schedule.shiftType;
-            }
-            
             setFormData({
                 id: schedule.id,
                 doctorId: schedule.doctorId,
@@ -57,89 +49,42 @@ const ScheduleDetail = ({ show, onHide, schedule, onUpdate, onDelete, onShowToas
                 status: schedule.status,
                 slot: schedule.slot || '08:00:00',
                 roomCode: schedule.roomCode || '',
-                original_status: schedule.original_status, // Lưu trạng thái gốc từ BE
-                shiftType: shiftTypeValue, // Lấy từ type hoặc shiftType
-                type: schedule.type // Lưu trữ trường type gốc
+                original_status: schedule.original_status, 
+                type: schedule.type,
+                currentPatients: schedule.currentPatients || 0, 
+                maxPatients: schedule.maxPatients || 5
             });
         }
-        
-        // Reset confirmDelete state when modal is shown
-        setConfirmDelete(false);
-    }, [schedule, show]);
 
-    // Kiểm tra xem slot có thuộc ca nào không nếu chưa có shiftType
-    useEffect(() => {
-        if (formData.slot && !formData.shiftType) {
-            // Kiểm tra xem slot thuộc ca sáng hay ca chiều
-            if (morningShiftSlots.some(item => item.value === formData.slot)) {
-                setFormData(prev => ({...prev, shiftType: 'morning'}));
-            } else if (afternoonShiftSlots.some(item => item.value === formData.slot)) {
-                setFormData(prev => ({...prev, shiftType: 'afternoon'}));
-            }
-        }
-    }, [formData.slot, formData.shiftType]);
+        setConfirmDelete(false);
+        setShowCancelConfirm(false);
+        setSelectedSubSlotToCancel(null);
+    }, [schedule, show]);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
-        console.log(`Field changed: ${name}, new value: ${value}`);
-        
-        // Xử lý đặc biệt cho trường roomCode
         let updatedValue = type === 'checkbox' ? checked : value;
         if (name === 'roomCode') {
-            // Chỉ cho phép nhập số
             updatedValue = value.replace(/[^0-9]/g, '');
-            
-            // Giới hạn độ dài
             if (updatedValue.length > 3) {
                 updatedValue = updatedValue.slice(0, 3);
             }
         }
-        
-        // Tạo bản sao của formData để cập nhật
+
         const updatedFormData = {
             ...formData,
             [name]: updatedValue
         };
-        
-        // Nếu thay đổi ca làm việc, cập nhật slot giờ tương ứng
-        if (name === 'shiftType') {
-            if (value === 'morning') {
-                // Chọn slot đầu tiên của ca sáng
-                updatedFormData.slot = '08:00:00';
-            } else if (value === 'afternoon') {
-                // Chọn slot đầu tiên của ca chiều
-                updatedFormData.slot = '13:00:00';
-            }
-        }
-        
-        // Nếu thay đổi slot giờ, tự động cập nhật ca làm việc tương ứng
-        if (name === 'slot') {
-            if (morningShiftSlots.some(slot => slot.value === value)) {
-                updatedFormData.shiftType = 'morning';
-            } else if (afternoonShiftSlots.some(slot => slot.value === value)) {
-                updatedFormData.shiftType = 'afternoon';
-            } else {
-                updatedFormData.shiftType = '';
-            }
-        }
-        
+
         setFormData(updatedFormData);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
-        // DEBUG: Log dữ liệu form trước khi xử lý
-        console.log('=== BẮT ĐẦU CẬP NHẬT LỊCH ===');
-        console.log('1. Dữ liệu form:', formData);
-        console.log('2. ID lịch cần cập nhật:', formData.id);
-        
         if (!formData.slot && formData.status === "available") {
             onShowToast('Vui lòng chọn khung giờ làm việc', 'danger');
             return;
         }
-        
-        // Kiểm tra số phòng
         if (!formData.roomCode || formData.roomCode.trim() === '') {
             onShowToast('Vui lòng nhập số phòng', 'danger');
             return;
@@ -147,67 +92,44 @@ const ScheduleDetail = ({ show, onHide, schedule, onUpdate, onDelete, onShowToas
 
         setLoading(true);
         try {
-            // Kiểm tra và đảm bảo roomCode luôn có giá trị
             if (!formData.roomCode) {
-                formData.roomCode = '101'; // Giá trị mặc định nếu không có
+                formData.roomCode = '101'; 
             }
-            
-            // DEBUG: Log thông tin quan trọng
-            console.log('3. Thông tin phòng:', formData.roomCode);
-            console.log('4. Ca làm việc:', formData.shiftType);
-            console.log('5. Trạng thái:', formData.status);
-            
-            // Giữ nguyên trạng thái hiện tại
             const beStatus = formData.original_status || StatusMapping[formData.status] || formData.status;
-            console.log('6. Trạng thái gửi lên server:', beStatus);
-            
-            // Cập nhật title dựa trên trạng thái
             let title = `${formData.doctorName} - ${formData.slot.substring(0, 5)} - P.${formData.roomCode}`;
-            
-            // Thêm thông tin ca làm việc vào title nếu có
-            if (formData.shiftType) {
-                const shiftName = formData.shiftType === 'morning' ? 'Ca sáng' : 'Ca chiều';
-                title = `${formData.doctorName} - ${shiftName} - ${formData.slot.substring(0, 5)} - P.${formData.roomCode}`;
-            }
-            
+
             const updatedSchedule = {
                 ...formData,
                 title: title,
                 original_status: beStatus,
-                type: formData.shiftType
             };
-            
-            // DEBUG: Log dữ liệu cuối cùng trước khi gửi
-            console.log('7. Dữ liệu cuối cùng sẽ gửi đi:', updatedSchedule);
-            
-            // Sử dụng setTimeout để tránh FlushSync error
-            setTimeout(() => {
-                try {
-                    // DEBUG: Log thời điểm gọi hàm cập nhật
-                    console.log('8. Bắt đầu gọi hàm cập nhật');
-                    onUpdate(updatedSchedule);
-                    handleClose();
-                    onShowToast('Cập nhật lịch thành công', 'success');
-                    console.log('=== KẾT THÚC CẬP NHẬT LỊCH ===');
-                } catch (error) {
-                    console.error('9. Lỗi khi gọi hàm cập nhật:', error);
-                    onShowToast('Có lỗi xảy ra khi cập nhật lịch', 'danger');
-                }
-            }, 0);
+
+            await onUpdate(updatedSchedule);
+
+            await bulkUpdateScheduleByDoctorAndDateAPI(formData.doctorId, formData.date, {
+                roomCode: formData.roomCode,
+                slot: formData.slot
+            });
+
+            handleClose();
         } catch (error) {
-            console.error('10. Lỗi trong quá trình xử lý:', error);
+            console.error('Bulk update error:', error);
             onShowToast('Có lỗi xảy ra khi cập nhật lịch', 'danger');
         } finally {
             setLoading(false);
         }
     };
 
-    // Hiển thị xác nhận xóa
+
     const showDeleteConfirmation = () => {
+        const currentPatients = formData.currentPatients || 0;
+        if (currentPatients > 0) {
+            showSubSlotsModal();
+            return;
+        }
         setConfirmDelete(true);
     };
 
-    // Hủy xác nhận xóa
     const cancelDelete = () => {
         setConfirmDelete(false);
     };
@@ -215,31 +137,324 @@ const ScheduleDetail = ({ show, onHide, schedule, onUpdate, onDelete, onShowToas
     const handleDelete = async () => {
         try {
             setDeleting(true);
-            
+
             if (!schedule || !schedule.id) {
-                console.error('Invalid schedule ID:', schedule);
-                onShowToast('Không thể xóa lịch: ID không hợp lệ', 'danger');
+                notification.error({
+                    message: 'Lỗi',
+                    description: 'Không thể xóa lịch: ID không hợp lệ',
+                    placement: 'topRight',
+                    duration: 3
+                });
                 return;
             }
-            
-            // Gọi API để xóa lịch
-            console.log('Deleting schedule:', schedule.id);
-            const response = await deleteScheduleAPI(schedule.id);
-            console.log('Delete response:', response);
-            
-            // Sử dụng setTimeout để tránh FlushSync error
-            setTimeout(() => {
-                // Thông báo thành công và đóng modal
-                onShowToast('Đã xóa lịch thành công', 'success');
-                onDelete(schedule.id);
-                onHide();
-            }, 0);
-        } catch (error) {
-            console.error('Error deleting schedule:', error);
-            onShowToast('Không thể xóa lịch, vui lòng thử lại sau', 'danger');
+
+            const currentPatients = formData.currentPatients || 0;
+
+            if (currentPatients === 0) {
+                try {
+                    await bulkDeleteSchedulesByDoctorAndDateAPI(schedule.doctorId, schedule.date);
+
+                    onHide();
+                    onRefreshData && onRefreshData();
+                    notification.success({
+                        message: 'Thành công',
+                        description: 'Đã xóa tất cả các lịch trong ngày của bác sĩ',
+                        placement: 'topRight',
+                        duration: 3
+                    });
+                    return;
+                } catch {
+                    notification.error({
+                        message: 'Lỗi',
+                        description: 'Không thể xóa lịch hàng loạt, vui lòng thử lại sau',
+                        placement: 'topRight',
+                        duration: 3
+                    });
+                    return;
+                }
+            }
+
+            notification.warning({
+                message: 'Không thể xóa lịch',
+                description: `Lịch này đã có ${currentPatients} bệnh nhân đặt. Không thể xóa lịch đã có bệnh nhân.`,
+                placement: 'topRight',
+                duration: 5
+            });
+            setDeleting(false);
+            setConfirmDelete(false);
+
+        } catch {
+            notification.error({
+                message: 'Lỗi',
+                description: 'Đã xảy ra lỗi khi xử lý yêu cầu xóa',
+                placement: 'topRight',
+                duration: 3
+            });
         } finally {
             setDeleting(false);
             setConfirmDelete(false);
+        }
+    };
+
+    const fetchSchedulesInSameSlot = async (scheduleId) => {
+        try {
+            const currentSchedule = schedule;
+            if (!currentSchedule) return [];
+            
+            // Gọi API lấy tất cả schedule cùng ngày, giờ, bác sĩ
+            const schedules = await getSchedulesByDoctorDateAndSlotAPI(
+                currentSchedule.doctorId,
+                currentSchedule.date,
+                currentSchedule.slot
+            );
+            
+            // Xử lý dữ liệu - Backend đã trả về đầy đủ thông tin patient
+            const processedSchedules = schedules.map((sched, index) => {
+                // Backend trả về patient as object, không phải ID
+                const hasPatient = !!(sched.patient && sched.patient.id);
+                const patientInfo = sched.patient || null;
+                
+                return {
+                    ...sched,
+                    // Chỉ lấy thông tin cần thiết: tên và ID
+                    patientId: patientInfo?.id || null,
+                    patientName: patientInfo?.fullName || null,
+                    hasPatientInfo: hasPatient
+                };
+            });
+            
+            return Array.isArray(processedSchedules) ? processedSchedules : [];
+        } catch (error) {
+            console.error('Lỗi khi lấy danh sách lịch trong slot:', error);
+            return [];
+        }
+    };
+
+    const generateSubSlots = async () => {
+        const schedules = await fetchSchedulesInSameSlot(schedule.id);
+        
+        const isPastDate = moment(schedule.date).isBefore(moment().startOf('day'));
+        const maxPatients = formData.maxPatients || 5;
+
+        // Tạo danh sách các slot đã có lịch
+        const filledSlots = schedules.map((sched, index) => {
+            // Sử dụng dữ liệu đã được normalized
+            const hasPatient = sched.hasPatientInfo;
+            const status = sched.status === 'Đã hủy'
+                ? 'Đã hủy'
+                : hasPatient
+                    ? 'Đang hoạt động'
+                    : 'Trống';
+
+            return {
+                id: sched.id,
+                scheduleId: sched.id,
+                slotNumber: index + 1,
+                patientName: sched.patientName || null,
+                patientId: sched.patientId || null,
+                status,
+                hasPatient,
+                canDelete: !hasPatient,
+                canCancel: hasPatient && status !== 'Đã hủy' && !isPastDate,
+                isVirtualSlot: false
+            };
+        });
+
+        // Thêm các slot trống nếu cần
+        const slots = [...filledSlots];
+        while (slots.length < maxPatients) {
+            slots.push({
+                id: `empty-${slots.length + 1}`,
+                scheduleId: null,
+                slotNumber: slots.length + 1,
+                patientName: null,
+                patientId: null,
+                status: 'Trống',
+                hasPatient: false,
+                canDelete: true,
+                canCancel: false,
+                isVirtualSlot: true
+            });
+        }
+
+        return slots;
+    };
+
+    const showSubSlotsModal = async () => {
+    if (!schedule || !schedule.id) {
+        notification.error({
+            message: 'Lỗi',
+            description: 'Không thể mở quản lý slot do thiếu thông tin lịch',
+            placement: 'topRight',
+            duration: 3
+        });
+        return;
+    }
+
+    setLoadingSubSlots(true);
+        try {
+            const slots = await generateSubSlots(); 
+            setSubSlots(slots);
+            setShowSubSlots(true);
+        } catch (error) {
+            console.error('Error loading sub slots:', error);
+            notification.error({
+                message: 'Lỗi',
+                description: 'Không thể tải danh sách slot',
+                placement: 'topRight',
+                duration: 3
+            });
+        } finally {
+            setLoadingSubSlots(false);
+            setShowCancelConfirm(false);
+            setSelectedSubSlotToCancel(null);
+        }
+    };
+
+    const closeSubSlotsModal = () => {
+        setShowSubSlots(false);
+
+        setShowCancelConfirm(false);
+        setSelectedSubSlotToCancel(null);
+
+        setTimeout(() => {
+            setSubSlots([]);
+            setLoadingSubSlots(false);
+        }, 300); 
+    };
+
+    const showCancelSubSlotConfirmation = (subSlot) => {
+        setSelectedSubSlotToCancel(subSlot);
+        setShowCancelConfirm(true);
+        setProcessingSubSlot(null); 
+    };
+
+    const cancelSubSlotConfirmation = () => {
+        setShowCancelConfirm(false);
+        setSelectedSubSlotToCancel(null);
+    };
+
+    const confirmCancelSubSlot = async () => {
+        if (selectedSubSlotToCancel) {
+            setProcessingCancel(true); 
+            try {
+                await handleCancelSubSlotWithCancelAPI(selectedSubSlotToCancel);
+            } finally {
+                setProcessingCancel(false);
+                setShowCancelConfirm(false);
+                setSelectedSubSlotToCancel(null);
+            }
+        }
+    };
+
+    const handleCancelSubSlotWithCancelAPI = async (subSlot) => {
+        try {
+            if (!subSlot.id || subSlot.isVirtualSlot) {
+                notification.warning({
+                    message: 'Không thể hủy',
+                    description: 'Slot này không có lịch để hủy',
+                    placement: 'topRight',
+                    duration: 3
+                });
+                return;
+            }
+
+            setProcessingSubSlot(subSlot.id);
+
+            const response = await updateScheduleStatusAPI(subSlot.id, "Đã hủy");
+
+            if (response.status === 200) {
+                notification.success({
+                    message: 'Thành công',
+                    description: `Đã hủy lịch cho ${subSlot.patientName}`,
+                    placement: 'topRight',
+                    duration: 4
+                });
+
+                await showSubSlotsModal();
+                if (onRefreshData) await onRefreshData();
+            }
+
+        } catch (error) {
+            console.error('Lỗi khi hủy lịch:', error);
+            
+            let errorMessage = 'Có lỗi xảy ra khi hủy lịch';
+            
+            if (error.response) {
+                const status = error.response.status;
+                const data = error.response.data;
+                
+                switch (status) {
+                    case 404:
+                        errorMessage = 'Không tìm thấy lịch hẹn để hủy';
+                        break;
+                    case 400:
+                        errorMessage = data?.message || 'Dữ liệu không hợp lệ';
+                        break;
+                    case 500:
+                        errorMessage = 'Lỗi server, vui lòng thử lại sau';
+                        break;
+                    default:
+                        errorMessage = data?.message || `Lỗi ${status}: ${error.response.statusText}`;
+                }
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+            
+            notification.error({
+                message: 'Lỗi hủy lịch',
+                description: errorMessage,
+                placement: 'topRight',
+                duration: 5
+            });
+        } finally {
+            setProcessingSubSlot(null);
+        }
+    };
+
+    const handleDeleteSubSlot = async (subSlot) => {
+        try {
+            if (!subSlot.id || subSlot.isVirtualSlot) {
+                notification.warning({
+                    message: 'Không thể xóa',
+                    description: 'Slot này không có lịch để xóa',
+                    placement: 'topRight',
+                    duration: 3
+                });
+                return;
+            }
+
+            setProcessingSubSlot(subSlot.id);
+            const response = await deleteScheduleAPI(subSlot.id);
+
+            setShowSubSlots(false);
+            onHide();
+            onDelete(subSlot.id);
+            notification.success({
+                message: 'Thành công',
+                description: 'Đã xóa lịch làm việc',
+                placement: 'topRight',
+                duration: 3
+            });
+
+        } catch (error) {
+            let errorMessage = 'Không thể xóa lịch';
+            if (error.response) {
+                if (error.response.status === 404) {
+                    errorMessage = 'Không tìm thấy lịch hoặc lịch đã được xóa trước đó';
+                } else if (error.response.status === 400) {
+                    errorMessage = 'Không thể xóa lịch này';
+                }
+            }
+
+            notification.error({
+                message: 'Lỗi',
+                description: errorMessage,
+                placement: 'topRight',
+                duration: 3
+            });
+        } finally {
+            setProcessingSubSlot(null);
         }
     };
 
@@ -252,54 +467,20 @@ const ScheduleDetail = ({ show, onHide, schedule, onUpdate, onDelete, onShowToas
         return moment(dateString).format('DD/MM/YYYY');
     };
 
-    // Hàm chuyển đổi thứ sang tiếng Việt
     const formatVietnameseDay = (date) => {
         const weekdays = [
-            'Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 
+            'Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư',
             'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'
         ];
-        const dayOfWeek = moment(date).day(); // 0 = Chủ nhật, 1 = Thứ hai, ...
+        const dayOfWeek = moment(date).day(); 
         return weekdays[dayOfWeek];
     };
 
     const formatTime = (timeString) => {
         if (!timeString) return '';
-        const slot = timeSlots.find(slot => slot.value === timeString);
-        return slot ? slot.label : timeString.substring(0, 5);
-    };
-    
-    // Lấy tên ca làm việc
-    const getShiftName = (shiftType) => {
-        if (!shiftType) return null;
-        return shiftType === 'morning' ? 'Ca sáng (08:00 - 11:00)' : 'Ca chiều (13:00 - 16:00)';
-    };
-
-    const handleUpdateSchedule = async () => {
-        try {
-            setIsLoading(true);
-            const updatedScheduleData = {
-                date: selectedSchedule.date,
-                slot: selectedSchedule.slot,
-                roomCode: selectedSchedule.roomCode,
-                status: selectedSchedule.status,
-                doctorId: selectedSchedule.doctorId,
-            };
-
-            console.log('Bắt đầu cập nhật lịch:', selectedSchedule.id);
-            const updatedSchedules = await updateScheduleAPI(selectedSchedule.id, updatedScheduleData);
-            
-            // Cập nhật state với danh sách lịch mới
-            if (updatedSchedules?.data) {
-                setSchedules(updatedSchedules.data);
-                message.success('Cập nhật lịch thành công!');
-                handleClose();
-            }
-        } catch (error) {
-            console.error('Lỗi khi cập nhật lịch:', error);
-            message.error('Không thể cập nhật lịch. Vui lòng thử lại!');
-        } finally {
-            setIsLoading(false);
-        }
+        const start = moment(timeString, 'HH:mm:ss');
+        const end = moment(start).add(1, 'hour');
+        return `${start.format('HH:mm')} - ${end.format('HH:mm')}`;
     };
 
     if (!schedule) {
@@ -307,219 +488,389 @@ const ScheduleDetail = ({ show, onHide, schedule, onUpdate, onDelete, onShowToas
     }
 
     return (
-        <Modal show={show} onHide={handleClose} centered size="lg" className="schedule-detail-modal">
-            <Modal.Header closeButton className="bg-light">
-                <Modal.Title>Chi tiết lịch làm việc</Modal.Title>
-            </Modal.Header>
-            <Modal.Body>
-                {confirmDelete ? (
-                    <Alert variant="danger">
-                        <p className="mb-2"><strong>Xác nhận xóa lịch làm việc</strong></p>
-                        <p className="mb-2">Bạn có chắc chắn muốn xóa lịch làm việc của bác sĩ {formData.doctorName} vào ngày {formatDate(formData.date)} lúc {formatTime(formData.slot)}?</p>
-                        <p className="mb-0">Thao tác này không thể hoàn tác và sẽ xóa dữ liệu khỏi hệ thống.</p>
-                    </Alert>
-                ) : (
-                    <Form onSubmit={handleSubmit}>
-                        {/* Thông tin cơ bản */}
-                        <div className="schedule-info-section mb-4 p-3 border rounded bg-light">
-                            <h5 className="mb-3">Thông tin chung</h5>
-                            
-                            <Row className="mb-3">
-                                <Col md={6} className="d-flex align-items-center mb-2">
-                                    <BsPerson className="text-primary me-2" size={20} />
-                                    <div>
-                                        <div className="text-muted small">Bác sĩ</div>
-                                        <strong>{formData.doctorName}</strong>
-                                    </div>
-                                </Col>
-                                
-                                <Col md={6} className="d-flex align-items-center mb-2">
-                                    <BsDoorOpen className="text-success me-2" size={20} />
-                                    <div>
-                                        <div className="text-muted small">Phòng</div>
-                                        <strong>Phòng {formData.roomCode}</strong>
-                                    </div>
-                                </Col>
-                            </Row>
-                            
-                            <Row>
-                                <Col md={6} className="d-flex align-items-center">
-                                    <BsCalendarWeek className="text-info me-2" size={20} />
-                                    <div>
-                                        <div className="text-muted small">Ngày</div>
-                                        <div className="schedule-date-value">
-                                            <strong>{formatDate(formData.date)}</strong> 
-                                            <span className="ms-2 text-muted small">
-                                                ({formatVietnameseDay(formData.date)})
-                                            </span>
+        <>
+            <Modal
+                show={show && !showSubSlots}
+                onHide={handleClose}
+                centered
+                size="lg"
+                className="schedule-detail-modal"
+                backdrop="static"
+            >
+                <Modal.Header closeButton className="bg-light">
+                    <Modal.Title>Chi tiết lịch làm việc</Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    {confirmDelete ? (
+                        <div style={{
+                            padding: '16px',
+                            backgroundColor: '#fff2f0',
+                            border: '1px solid #ffccc7',
+                            borderRadius: '6px',
+                            marginBottom: '16px'
+                        }}>
+                            <p style={{ marginBottom: '8px', fontWeight: 'bold', color: '#cf1322' }}>Xác nhận xóa lịch làm việc</p>
+                            <p style={{ marginBottom: '8px', color: '#262626' }}>Bạn có chắc chắn muốn xóa lịch làm việc của bác sĩ {formData.doctorName} vào ngày {formatDate(formData.date)} lúc {formatTime(formData.slot)}?</p>
+                            <p style={{ marginBottom: '0', color: '#8c8c8c' }}>Thao tác này không thể hoàn tác và sẽ xóa dữ liệu khỏi hệ thống.</p>
+                        </div>
+                    ) : (
+                        <Form onSubmit={handleSubmit}>
+                            <div className="schedule-info-section mb-4 p-3 border rounded bg-light">
+                                <h5 className="mb-3">Thông tin chung</h5>
+
+                                <Row className="mb-3">
+                                    <Col md={6} className="d-flex align-items-center mb-2">
+                                        <BsPerson className="text-primary me-2" size={20} />
+                                        <div>
+                                            <div className="text-muted small">Bác sĩ</div>
+                                            <strong>{formData.doctorName}</strong>
                                         </div>
+                                    </Col>
+
+                                    <Col md={6} className="d-flex align-items-center mb-2">
+                                        <BsDoorOpen className="text-success me-2" size={20} />
+                                        <div>
+                                            <div className="text-muted small">Phòng</div>
+                                            <strong>Phòng {formData.roomCode}</strong>
+                                        </div>
+                                    </Col>
+                                </Row>
+
+                                <Row>
+                                    <Col md={6} className="d-flex align-items-center">
+                                        <BsCalendarWeek className="text-info me-2" size={20} />
+                                        <div>
+                                            <div className="text-muted small">Ngày</div>
+                                            <div className="schedule-date-value">
+                                                <strong>{formatDate(formData.date)}</strong>
+                                                <span className="ms-2 text-muted small">
+                                                    ({formatVietnameseDay(formData.date)})
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </Col>
+
+                                    <Col md={6} className="d-flex align-items-center">
+                                        <BsClock className="text-warning me-2" size={20} />
+                                        <div>
+                                            <div className="text-muted small">Khung giờ</div>
+                                            <strong>{formatTime(formData.slot)}</strong>
+                                        </div>
+                                    </Col>
+                                </Row>
+                                <Row className="mt-3 align-items-center justify-content-between">
+                                    <Col md={6} className="d-flex align-items-center mb-2">
+                                        <BsPersonPlus className="text-success me-2" size={20} />
+                                        <div>
+                                        <div className="text-muted small">Số bệnh nhân</div>
+                                        <Badge
+                                            bg={formData.currentPatients >= formData.maxPatients ? 'danger' :
+                                            formData.currentPatients > 0 ? 'warning' : 'success'}
+                                            className="p-2"
+                                        >
+                                            {formData.currentPatients} / {formData.maxPatients}
+                                        </Badge>
+                                        </div>
+                                    </Col>
+                                </Row>
+                            </div>
+                            <div className="update-section mb-3 p-3 border rounded">
+                                <h5 className="mb-3">Cập nhật thông tin</h5>
+
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Khung giờ</Form.Label>
+                                    <Form.Select
+                                        name="slot"
+                                        value={formData.slot}
+                                        onChange={handleChange}
+                                    >
+                                        {timeSlots.map(slot => (
+                                            <option key={slot.value} value={slot.value}>
+                                                {slot.label}
+                                            </option>
+                                        ))}
+                                    </Form.Select>
+                                </Form.Group>
+                                <Form.Group className="mb-3">
+                                    <Form.Label>Phòng làm việc</Form.Label>
+                                    <div className="d-flex align-items-center">
+                                        <Form.Control
+                                            type="text"
+                                            name="roomCode"
+                                            value={formData.roomCode}
+                                            onChange={handleChange}
+                                            placeholder="Nhập số phòng (VD: 101)"
+                                            required
+                                        />
                                     </div>
-                                </Col>
-                                
-                                <Col md={6} className="d-flex align-items-center">
-                                    <BsClock className="text-warning me-2" size={20} />
-                                    <div>
-                                        <div className="text-muted small">Khung giờ</div>
-                                        <strong>{formatTime(formData.slot)}</strong>
-                                    </div>
-                                </Col>
-                            </Row>
-                            
-                            {/* Hiển thị thông tin ca làm việc */}
-                            <Row className="mt-3">
-                                <Col md={12} className="d-flex align-items-center">
-                                    <BsBriefcase className="text-primary me-2" size={20} />
-                                    <div>
-                                        <div className="text-muted small">Ca làm việc</div>
-                                        {formData.shiftType ? (
-                                            <Badge 
-                                                bg={formData.shiftType === 'morning' ? 'info' : 'warning'}
+                                </Form.Group>
+                            </div>
+
+                            <div className="system-info p-2 border-top mt-3">
+                                <small className="d-block text-muted">Cập nhật gần nhất: {moment().format('DD/MM/YYYY HH:mm')}</small>
+                            </div>
+                        </Form>
+                    )}
+                </Modal.Body>
+                <Modal.Footer>
+                    <div className="button-container">
+                        {!confirmDelete ? (
+                            <Button
+                                variant="outline-danger"
+                                onClick={showDeleteConfirmation}
+                                disabled={deleting}
+                                className="btn-action"
+                            >
+                                {formData.currentPatients > 0 ? (
+                                    <>
+                                        <BsList className="me-1" />
+                                        Quản lý slot
+                                    </>
+                                ) : (
+                                    'Xóa lịch'
+                                )}
+                            </Button>
+                        ) : (
+                            <>
+                                <Button
+                                    variant="secondary"
+                                    onClick={cancelDelete}
+                                    className="btn-action"
+                                    disabled={deleting}
+                                >
+                                    Hủy xóa
+                                </Button>
+                                <Button
+                                    variant="danger"
+                                    onClick={handleDelete}
+                                    disabled={deleting}
+                                    className="btn-action"
+                                >
+                                    {deleting ? (
+                                        <>
+                                            <Spinner animation="border" size="sm" className="me-1" />
+                                            Đang xử lý...
+                                        </>
+                                    ) : (
+                                        'Xác nhận xóa'
+                                    )}
+                                </Button>
+                            </>
+                        )}
+
+                        <div className="action-buttons">
+                            <Button
+                                variant="outline-secondary"
+                                onClick={handleClose}
+                                className="btn-action"
+                            >
+                                Đóng
+                            </Button>
+                            {!confirmDelete && (
+                                <Button
+                                    variant="outline-primary"
+                                    onClick={handleSubmit}
+                                    disabled={loading}
+                                    className="btn-action"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <Spinner animation="border" size="sm" className="me-1" />
+                                            Đang xử lý...
+                                        </>
+                                    ) : (
+                                        'Cập nhật'
+                                    )}
+                                </Button>
+                            )}
+                        </div>
+                    </div>
+                </Modal.Footer>
+            </Modal>
+
+            <Modal
+                show={showSubSlots}
+                onHide={closeSubSlotsModal}
+                centered
+                size="lg"
+                className="sub-slots-modal"
+                backdrop="static"
+                style={{ zIndex: 1060 }}
+            >
+                <Modal.Header closeButton className="bg-light">
+                    <Modal.Title>
+                        <BsList className="me-2" />
+                        Quản lí từng ca khám
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body style={{ position: 'relative' }}>
+                    <div className="mb-3">
+                        <h6>Lịch: {formData.doctorName} - {formatDate(formData.date)} - {formatTime(formData.slot)}</h6>
+                        <p className="text-muted small">
+                            Slot này có thể chứa tối đa {formData.maxPatients} bệnh nhân.
+                            Hiện tại có {formData.currentPatients} bệnh nhân đã đặt lịch.
+                        </p>
+                    </div>
+
+                    {showCancelConfirm && selectedSubSlotToCancel && (
+                        <div style={{ padding: '24px', background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
+                                <BsPersonDash size={24} style={{ marginRight: 8, color: '#ff4d4f' }} />
+                                <h5 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>Xác nhận hủy lịch</h5>
+                            </div>
+
+                            <div style={{ marginBottom: 16 }}>
+                                <p style={{ marginBottom: 8 }}>
+                                    Bạn có chắc chắn muốn hủy lịch của
+                                </p>
+                                <div style={{ fontWeight: 'bold', fontSize: 16 }}>
+                                    {selectedSubSlotToCancel.patientName}
+                                </div>
+                                <p style={{ marginTop: 8, color: '#ff4d4f' }}>
+                                    Thao tác này không thể hoàn tác
+                                </p>
+                            </div>
+
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                <Button
+                                    onClick={cancelSubSlotConfirmation}
+                                    disabled={processingSubSlot !== null}
+                                >
+                                    Hủy bỏ
+                                </Button>
+
+                                <Button
+                                    type="primary"
+                                    danger
+                                    onClick={confirmCancelSubSlot}
+                                    disabled={processingCancel}
+                                    loading={processingCancel}
+                                >
+                                    Xác nhận hủy
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
+
+                    <Divider>
+                    </Divider>
+
+                    {loadingSubSlots ? (
+                        <div className="text-center py-4">
+                            <Spinner animation="border" />
+                            <p className="mt-2">Đang tải danh sách...</p>
+                        </div>
+                    ) : (
+                        <div className="sub-slots-list">
+                            {subSlots.map((subSlot) => (
+                                <div
+                                    key={subSlot.id}
+                                    className={`d-flex align-items-center justify-content-between p-3 mb-2 border rounded ${subSlot.status === 'Đã hủy' ? 'border-secondary bg-light' :
+                                        subSlot.hasPatient ? 'border-warning bg-light' : 'border-success'
+                                        }`}
+                                >
+                                    <div className="d-flex align-items-center">
+                                        <div className="me-3">
+                                            <Badge
+                                                bg={
+                                                    subSlot.status === 'Đã hủy' ? 'secondary' :
+                                                        subSlot.hasPatient ? 'warning' : 'success'
+                                                }
                                                 className="p-2"
                                             >
-                                                {getShiftName(formData.shiftType)}
+                                                Bệnh nhân {subSlot.slotNumber}
                                             </Badge>
-                                        ) : (
-                                            <span className="text-muted">Không thuộc ca nào</span>
-                                        )}
+                                        </div>
+                                        <div>
+                                            <div className="fw-bold">
+                                                {subSlot.hasPatient ? subSlot.patientName : 'Chưa có'}
+                                            </div>
+                                            
+                                            <small className="text-muted">
+                                                Trạng thái: <span className={
+                                                    subSlot.status === 'Đã hủy' ? 'text-secondary fw-bold' :
+                                                        subSlot.status === 'Đang hoạt động' ? 'text-warning' : 'text-success'
+                                                }>
+                                                    {subSlot.status}
+                                                </span>
+                                            </small>
+                                        </div>
                                     </div>
-                                </Col>
-                            </Row>
-                        </div>
-                        
-                        {/* Thông tin cập nhật */}
-                        <div className="update-section mb-3 p-3 border rounded">
-                            <h5 className="mb-3">Cập nhật thông tin</h5>
-                            
-                            {/* Thông tin ca làm việc */}
-                            <Form.Group className="mb-3">
-                                <Form.Label>Ca làm việc</Form.Label>
-                                <Form.Select
-                                    name="shiftType"
-                                    value={formData.shiftType || ''}
-                                    onChange={handleChange}
-                                >
-                                    <option value="">Không thuộc ca nào</option>
-                                    <option value="morning">Ca sáng (08:00 - 11:00)</option>
-                                    <option value="afternoon">Ca chiều (13:00 - 16:00)</option>
-                                </Form.Select>
-                                <Form.Text className="text-muted">
-                                    Đánh dấu lịch này thuộc ca làm việc nào
-                                </Form.Text>
-                            </Form.Group>
-                            
-                            {/* Khung giờ cụ thể */}
-                            <Form.Group className="mb-3">
-                                <Form.Label>Khung giờ cụ thể</Form.Label>
-                                <Form.Select
-                                    name="slot"
-                                    value={formData.slot}
-                                    onChange={handleChange}
-                                >
-                                    {timeSlots.map(slot => (
-                                        <option key={slot.value} value={slot.value}>
-                                            {slot.label}
-                                        </option>
-                                    ))}
-                                </Form.Select>
-                                <Form.Text className="text-muted">
-                                    Thiết lập thời gian làm việc cụ thể cho bác sĩ
-                                </Form.Text>
-                            </Form.Group>
-                            
-                            {/* Thêm phần cập nhật phòng làm việc */}
-                            <Form.Group className="mb-3">
-                                <Form.Label>Phòng làm việc</Form.Label>
-                                <div className="d-flex align-items-center">
-                                    <BsDoorOpen className="text-success me-2" size={20} />
-                                    <Form.Control
-                                        type="text"
-                                        name="roomCode"
-                                        value={formData.roomCode}
-                                        onChange={handleChange}
-                                        placeholder="Nhập số phòng (VD: 101)"
-                                        required
-                                    />
+
+                                    <div className="d-flex gap-2">
+                                        {subSlot.canCancel && !subSlot.isVirtualSlot && (
+                                            <Button
+                                                variant="outline-warning"
+                                                size="sm"
+                                                onClick={() => showCancelSubSlotConfirmation(subSlot)}
+                                                disabled={subSlot.status === "Đã hủy" || processingSubSlot === subSlot.id}
+                                            >
+                                                <BsPersonDash className="me-1" />
+                                                {processingSubSlot === subSlot.id ? (
+                                                    <>
+                                                        <Spinner animation="border" size="sm" className="me-1" />
+                                                        Đang hủy...
+                                                    </>
+                                                ) : (
+                                                    'Hủy lịch'
+                                                )}
+                                            </Button>
+                                        )}
+                                        {subSlot.hasPatient && !subSlot.canCancel && subSlot.status !== 'Đã hủy' && (
+                                            <Button
+                                                variant="outline-secondary"
+                                                size="sm"
+                                                disabled
+                                                title="Không thể hủy lịch trong quá khứ"
+                                            >
+                                                <BsPersonDash className="me-1" />
+                                                Đã quá hạn
+                                            </Button>
+                                        )}
+                                        {subSlot.canDelete && !subSlot.isVirtualSlot && (
+                                        <Button
+                                            variant="outline-danger"
+                                            size="sm"
+                                            onClick={() => handleDeleteSubSlot(subSlot)}
+                                            disabled={processingSubSlot === subSlot.id}
+                                        >
+                                            {processingSubSlot === subSlot.id ? (
+                                                <>
+                                                    <Spinner animation="border" size="sm" className="me-1" />
+                                                    Đang xóa...
+                                                </>
+                                            ) : (
+                                                'Xóa slot'
+                                            )}
+                                        </Button>
+                                    )}
+                                    </div>
                                 </div>
-                            </Form.Group>
+                            ))}
                         </div>
-                        
-                        {/* Thông tin hệ thống */}
-                        <div className="system-info p-2 border-top mt-3">
-                            <small className="d-block text-muted mb-1">ID lịch: {formData.id}</small>
-                            <small className="d-block text-muted">Cập nhật gần nhất: {moment().format('DD/MM/YYYY HH:mm')}</small>
-                        </div>
-                    </Form>
-                )}
-            </Modal.Body>
-            <Modal.Footer>
-                <div className="button-container">
-                    {!confirmDelete ? (
-                        <Button 
-                            variant="outline-danger" 
-                            onClick={showDeleteConfirmation} 
-                            disabled={deleting}
-                            className="btn-action"
-                        >
-                            Xóa lịch
-                        </Button>
-                    ) : (
-                        <>
-                            <Button 
-                                variant="secondary" 
-                                onClick={cancelDelete} 
-                                className="btn-action"
-                                disabled={deleting}
-                            >
-                                Hủy xóa
-                            </Button>
-                            <Button 
-                                variant="danger" 
-                                onClick={handleDelete} 
-                                disabled={deleting}
-                                className="btn-action"
-                            >
-                                {deleting ? (
-                                    <>
-                                        <Spinner animation="border" size="sm" className="me-1" />
-                                        Đang xử lý...
-                                    </>
-                                ) : (
-                                    'Xác nhận xóa'
-                                )}
-                            </Button>
-                        </>
                     )}
-                    
-                    <div className="action-buttons">
-                        <Button 
-                            variant="outline-secondary" 
-                            onClick={handleClose} 
-                            className="btn-action"
-                        >
-                            Đóng
-                        </Button>
-                        {!confirmDelete && (
-                            <Button 
-                                variant="outline-primary" 
-                                onClick={handleSubmit} 
-                                disabled={loading}
-                                className="btn-action"
-                            >
-                                {loading ? (
-                                    <>
-                                        <Spinner animation="border" size="sm" className="me-1" />
-                                        Đang xử lý...
-                                    </>
-                                ) : (
-                                    'Cập nhật'
-                                )}
-                            </Button>
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button
+                        variant="secondary"
+                        onClick={() => setShowSubSlots(false)}
+                        disabled={processingSubSlot !== null || showCancelConfirm}
+                    >
+                        {processingSubSlot !== null ? (
+                            <>
+                                <Spinner animation="border" size="sm" className="me-1" />
+                                Đang xử lý...
+                            </>
+                        ) : showCancelConfirm ? (
+                            'Vui lòng hoàn thành xác nhận'
+                        ) : (
+                            'Đóng'
                         )}
-                    </div>
-                </div>
-            </Modal.Footer>
-        </Modal>
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+        </>
     );
 };
-
 export default ScheduleDetail;

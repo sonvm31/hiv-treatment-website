@@ -1,8 +1,19 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, message, Spin } from 'antd';
-import { fetchAllDocumentsAPI } from '../../services/api.service';
-import { getDocumentImagesByDocumentId } from '../../services/document.service';
-import { FileImageOutlined } from '@ant-design/icons';
+import {
+  useState,
+  useEffect
+} from 'react';
+import {
+  Modal,
+  message,
+  Spin
+} from 'antd';
+import {
+  fetchAllDocumentsAPI,
+  getDocumentImagesByDocumentId
+} from '../../services/document.service';
+import {
+  FileImageOutlined
+} from '@ant-design/icons';
 import '../../styles/document/DocumentSearchPage.css';
 
 const ResourceSearchPage = () => {
@@ -12,7 +23,7 @@ const ResourceSearchPage = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [documentImages, setDocumentImages] = useState({}); // { [documentId]: [array of images] }
+  const [documentImages, setDocumentImages] = useState({});
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -20,12 +31,19 @@ const ResourceSearchPage = () => {
         setLoading(true);
         const response = await fetchAllDocumentsAPI();
         if (response && response.data) {
-          setDocuments(response.data);
-          setFilteredDocs(response.data);
-          // Lấy ảnh cho từng document
+          // Sort documents by creation date (newest first)
+          const sortedDocuments = response.data.sort((a, b) => {
+            const dateA = new Date(a.createdAt || a.created_at || 0);
+            const dateB = new Date(b.createdAt || b.created_at || 0);
+            return dateB - dateA; // newest first
+          });
+
+          setDocuments(sortedDocuments);
+          setFilteredDocs(sortedDocuments);
+          // Get picture for document
           const imagesMap = {};
           await Promise.all(
-            response.data.map(async (doc) => {
+            sortedDocuments.map(async (doc) => {
               try {
                 const imgRes = await getDocumentImagesByDocumentId(doc.id);
                 imagesMap[doc.id] = imgRes.data;
@@ -43,10 +61,16 @@ const ResourceSearchPage = () => {
         fetch('/api/documents.json')
           .then((res) => res.json())
           .then((data) => {
-            setDocuments(data);
-            setFilteredDocs(data);
+            // Sort fallback data by creation date (newest first)
+            const sortedData = data.sort((a, b) => {
+              const dateA = new Date(a.createdAt || a.created_at || 0);
+              const dateB = new Date(b.createdAt || b.created_at || 0);
+              return dateB - dateA; // newest first
+            });
+            setDocuments(sortedData);
+            setFilteredDocs(sortedData);
           })
-          .catch((err) => console.error('Lỗi tải dữ liệu local:', err));
+          .catch((error) => console.error('Lỗi tải dữ liệu:', error));
       } finally {
         setLoading(false);
       }
@@ -58,14 +82,30 @@ const ResourceSearchPage = () => {
   const handleSearch = (e) => {
     const inputValue = e.target.value;
     setSearchTerm(inputValue);
-    const term = inputValue.toLowerCase();
+    const term = normalizeString(inputValue.toLowerCase());
     const filtered = documents.filter(
       (doc) =>
-        doc.title.toLowerCase().includes(term) ||
-        doc.author?.toLowerCase().includes(term) ||
-        doc.content?.toLowerCase().includes(term)
+        normalizeString(doc.title).includes(term) ||
+        normalizeString(doc.doctor.fullName ? doc.doctor.fullName : '').toLowerCase().includes(term) ||
+        normalizeString(doc.content ? doc.content : '').toLowerCase().includes(term)
     );
-    setFilteredDocs(filtered);
+    // Maintain sort order (newest first) when searching
+    const sortedFiltered = filtered.sort((a, b) => {
+      const dateA = new Date(a.createdAt || a.created_at || 0);
+      const dateB = new Date(b.createdAt || b.created_at || 0);
+      return dateB - dateA; // newest first
+    });
+    setFilteredDocs(sortedFiltered);
+  };
+
+  // Convert search string to Unaccented Vietnamese to avoid different context format
+  const normalizeString = (str) => {
+    return str
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
   };
 
   const showModal = (doc) => {
@@ -77,6 +117,14 @@ const ResourceSearchPage = () => {
     setModalVisible(false);
   };
 
+  const getSnippet = (html, maxLength = 70) => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    const text = tmp.textContent || tmp.innerText || '';
+    return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
+  };
+
+
   return (
     <section className="resource-page">
       <input
@@ -86,7 +134,6 @@ const ResourceSearchPage = () => {
         onChange={handleSearch}
         className="search-input"
       />
-
       {loading ? (
         <div className="loading-container">
           <Spin size="large" />
@@ -112,7 +159,7 @@ const ResourceSearchPage = () => {
                   👨‍⚕️ {doc.doctor?.fullName || 'Chưa có tác giả'}
                 </p>
                 <p className="document-snippet">
-                  {doc.content?.length > 70 ? doc.content.slice(0, 70) + '...' : doc.content}
+                  {getSnippet(doc.content, 70)}
                 </p>
                 <p className="document-date">
                   📅 {new Date(doc.createdAt || doc.created_at).toLocaleDateString('vi-VN')}
@@ -139,7 +186,7 @@ const ResourceSearchPage = () => {
       >
         {selectedDoc && (
           <div className="modal-content">
-            {/* Hiển thị hình ảnh của document nếu có */}
+            {/* Display document image if exists */}
             <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {(documentImages[selectedDoc.id] && documentImages[selectedDoc.id].length > 0) ? (
                 documentImages[selectedDoc.id].map(img => (
@@ -158,8 +205,8 @@ const ResourceSearchPage = () => {
             <p className="document-date">
               📅 {new Date(selectedDoc.createdAt || selectedDoc.created_at).toLocaleDateString('vi-VN')}
             </p>
-            <div className="document-content">
-              {selectedDoc.content}
+            <div className="document-content"
+              dangerouslySetInnerHTML={{ __html: selectedDoc.content }}>
             </div>
           </div>
         )}
@@ -167,5 +214,4 @@ const ResourceSearchPage = () => {
     </section>
   );
 };
-
 export default ResourceSearchPage;

@@ -1,19 +1,31 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Spin, message, Modal } from 'antd';
-import { fetchAllDocumentsAPI } from '../../services/api.service';
-import { getDocumentImagesByDocumentId } from '../../services/document.service';
-import { FileImageOutlined } from '@ant-design/icons';
+import {
+  useState,
+  useEffect
+} from 'react';
+import {
+  Link
+} from 'react-router-dom';
+import {
+  Spin,
+  message,
+  Modal
+} from 'antd';
+import {
+  fetchAllDocumentsAPI,
+  getDocumentImagesByDocumentId
+} from '../../services/document.service';
+import {
+  FileImageOutlined
+} from '@ant-design/icons';
 import '../../styles/home-section/DocumentList.css';
 
 const Document = () => {
   const [documents, setDocuments] = useState([]);
   const [showAll] = useState(false);
-  const [expandedId, setExpandedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedDoc, setSelectedDoc] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [documentImages, setDocumentImages] = useState({}); // { [documentId]: [array of images] }
+  const [documentImages, setDocumentImages] = useState({});
 
   useEffect(() => {
     const fetchDocuments = async () => {
@@ -22,7 +34,6 @@ const Document = () => {
         const response = await fetchAllDocumentsAPI();
         if (response && response.data) {
           setDocuments(response.data);
-          // Lấy ảnh cho từng document
           const imagesMap = {};
           await Promise.all(
             response.data.map(async (doc) => {
@@ -43,21 +54,24 @@ const Document = () => {
         fetch('/api/documents.json')
           .then((res) => res.json())
           .then((data) => setDocuments(data))
-          .catch((err) => console.error('Lỗi tải dữ liệu local:', err));
+          .catch((error) => console.error('Lỗi tải dữ liệu local:', error));
       } finally {
         setLoading(false);
       }
     };
-
     fetchDocuments();
   }, []);
 
-  // Chỉ hiện thị 4 tài liệu đầu tiên nếu không ở chế độ xem tất cả
-  const visibleDocuments = showAll ? documents : documents.slice(0, 4);
-
-  const toggleExpand = (id) => {
-    setExpandedId(expandedId === id ? null : id);
+  const shuffleArray = (array) => {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
   };
+
+  const visibleDocuments = showAll ? documents : shuffleArray(documents).slice(0, 4);
 
   const showModal = (doc) => {
     setSelectedDoc(doc);
@@ -66,6 +80,16 @@ const Document = () => {
 
   const handleCancel = () => {
     setModalVisible(false);
+  };
+
+
+
+  // Display a small brief 70% information of the document
+  const getSnippet = (html, maxLength = 70) => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    const text = tmp.textContent || tmp.innerText || '';
+    return text.length > maxLength ? text.slice(0, maxLength) + '...' : text;
   };
 
   return (
@@ -103,7 +127,7 @@ const Document = () => {
                     👨‍⚕️ {doc.doctor?.fullName || 'Chưa có tác giả'}
                   </p>
                   <p className="document-snippet">
-                    {doc.content?.length > 70 ? doc.content.slice(0, 70) + '...' : doc.content}
+                    {getSnippet(doc.content, 70)}
                   </p>
                   <p className="document-date">
                     📅 {new Date(doc.createdAt || doc.created_at).toLocaleDateString('vi-VN')}
@@ -115,7 +139,7 @@ const Document = () => {
                     📖 Đọc bài viết
                   </button>
                 </div>
-              );
+              )
             })}
           </div>
 
@@ -146,7 +170,6 @@ const Document = () => {
       >
         {selectedDoc && (
           <div className="modal-content">
-            {/* Hiển thị hình ảnh của document nếu có */}
             <div style={{ marginBottom: 16, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               {(documentImages[selectedDoc.id] && documentImages[selectedDoc.id].length > 0) ? (
                 documentImages[selectedDoc.id].map(img => (
@@ -165,14 +188,14 @@ const Document = () => {
             <p className="document-date">
               📅 {new Date(selectedDoc.createdAt || selectedDoc.created_at).toLocaleDateString('vi-VN')}
             </p>
-            <div className="document-content">
-              {selectedDoc.content}
-            </div>
+            <div
+              className="document-content"
+              dangerouslySetInnerHTML={{ __html: selectedDoc.content }}
+            />
           </div>
         )}
       </Modal>
     </section>
-  );
-};
-
-export default Document;
+  )
+}
+export default Document

@@ -1,78 +1,81 @@
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState
+} from "react"
 import {
   Card,
   Table,
   Input,
   Button,
   Spin,
-  Space,
   notification,
-} from "antd";
+  Popconfirm,
+} from "antd"
 import {
   SaveOutlined,
 } from "@ant-design/icons";
 import {
   fetchSystemConfigurationsAPI,
-  updateSystemConfigurationAPI,
-} from "../../services/api.service";
-
+  updateSystemConfigurationAPI
+} from "../../services/systemConfiguration.service";
 import "../../styles/admin/AdminDashboard.css";
 
+
 const AdminSystemConfig = () => {
-  const [configs, setConfigs] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [configs, setConfigs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   const loadConfigs = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
-      const res = await fetchSystemConfigurationsAPI();
-      setConfigs(res.data || []);
-    } catch (error) {
+      const res = await fetchSystemConfigurationsAPI()
+      setConfigs(res.data || [])
+    } catch {
       notification.error({
         message: "Lỗi tải cấu hình",
         description: "Không thể tải danh sách cấu hình hệ thống.",
-      });
+      })
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   useEffect(() => {
-    loadConfigs();
-  }, []);
+    loadConfigs()
+  }, [])
 
   const handleValueChange = (id, value) => {
     setConfigs((prev) =>
       prev.map((c) =>
         c.id === id ? { ...c, value } : c
       )
-    );
-  };
+    )
+  }
 
   const handleSaveAll = async () => {
-    setSaving(true);
+    setSaving(true)
     try {
       for (const config of configs) {
         await updateSystemConfigurationAPI(config.id, {
           name: config.name,
           value: config.value,
-        });
+        })
       }
       notification.success({
         message: "Lưu thành công",
         description: "Tất cả thay đổi đã được lưu.",
-      });
-      loadConfigs();
-    } catch (error) {
+      })
+      loadConfigs()
+    } catch {
       notification.error({
         message: "Lỗi lưu",
         description: "Có lỗi khi lưu thay đổi.",
-      });
+      })
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   const columns = [
     {
@@ -96,7 +99,7 @@ const AdminSystemConfig = () => {
         />
       ),
     },
-  ];
+  ]
 
   if (loading) {
     return (
@@ -104,34 +107,38 @@ const AdminSystemConfig = () => {
         size="large"
         style={{ display: "block", margin: "100px auto" }}
       />
-    );
+    )
   }
 
   return (
-    <div style={{ padding: 32 }}>
-      <Card
-        title="Cấu hình hệ thống"
-        className="admin-system-config-card"
-        extra={
+    <Card
+      title="Cấu hình hệ thống"
+      extra={
+        <Popconfirm
+          title="Lưu thay đổi"
+          description="Bạn có chắc chắn muốn lưu thay đổi?"
+          onConfirm={handleSaveAll}
+          okText="Có"
+          cancelText="Không"
+          placement="left"
+          loading={saving}
+        >
           <Button
             type="primary"
             icon={<SaveOutlined />}
-            loading={saving}
-            onClick={handleSaveAll}
           >
             Lưu tất cả
           </Button>
-        }
-      >
-        <Table
-          columns={columns}
-          dataSource={configs}
-          rowKey="id"
-          pagination={false}
-        />
-      </Card>
-    </div>
-  );
-};
-
-export default AdminSystemConfig;
+        </Popconfirm>
+      }
+    >
+      <Table
+        columns={columns}
+        dataSource={configs}
+        rowKey="id"
+        pagination={false}
+      />
+    </Card>
+  )
+}
+export default AdminSystemConfig

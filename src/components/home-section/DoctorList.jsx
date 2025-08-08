@@ -1,15 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { message, Spin } from 'antd';
-import { fetchDoctorProfileAPI, fetchAccountByRoleAPI } from '../../services/api.service';
+import {
+  useState,
+  useEffect
+} from 'react';
+import {
+  Link
+} from 'react-router-dom';
+import {
+  Spin
+} from 'antd';
 import '../../styles/home-section/DoctorList.css';
-
-// Dùng ảnh từ thư mục public
 import defaultDoctorImage from '../../assets/doctor.png';
+import {
+  fetchAccountByRoleAPI
+} from '../../services/user.service';
+import {
+  fetchDoctorProfileAPI
+} from '../../services/doctorProfile.service';
 
 const DoctorList = () => {
-  const [doctorAccounts, setDoctorAccounts] = useState([]);
-  const [doctorProfiles, setDoctorProfiles] = useState([]);
   const [mergedDoctors, setMergedDoctors] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -27,12 +35,6 @@ const DoctorList = () => {
 
       const doctors = accountRes?.data || [];
       const profiles = profileRes?.data || [];
-
-      setDoctorAccounts(doctors);
-      setDoctorProfiles(profiles);
-
-      console.log(doctors)
-      console.log(profiles)
 
       const merged = doctors.map(account => {
         const profile = profiles.find(p => p.doctor.id === account.id);
@@ -53,8 +55,17 @@ const DoctorList = () => {
       setLoading(false);
     }
   };
-  // Chỉ hiển thị 4 bác sĩ đầu tiên
-  const visibleDoctors = mergedDoctors.slice(0, 4);
+
+  const shuffleArray = (array) => {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  };
+
+  const visibleDoctors = shuffleArray(mergedDoctors).slice(0, 4);
 
   return (
     <section className="doctor-section" id="doctor-section">
@@ -90,7 +101,9 @@ const DoctorList = () => {
                   </p>
                   <p>{mergedDoctors.qualifications}</p>
                   <Link to={`/booking?doctorId=${mergedDoctors.id}`} >
-                    <button className="btn-primary">Đặt lịch</button>
+                    <button className="btn-primary" onClick={() => {
+                      window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}>Đặt lịch</button>
                   </Link>
                 </div>
               </div>
@@ -108,11 +121,9 @@ const DoctorList = () => {
               Xem tất cả bác sĩ
             </Link>
           </div>
-
         </>
       )}
     </section>
   )
 }
-
 export default DoctorList;

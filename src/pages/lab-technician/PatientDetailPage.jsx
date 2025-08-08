@@ -1,30 +1,46 @@
-import { useParams, useNavigate } from "react-router-dom";
-import { useState, useEffect } from "react";
 import {
-  fetchHealthRecordByScheduleIdAPI,
-  fetchTestResultByHealthRecordIdAPI,
-  updateHealthRecordAPI,
-  updateTestResultAPI,
-} from "../../services/api.service.js";
+  useParams,
+  useNavigate,
+  useLocation,
+} from "react-router-dom"
 import {
-  Typography, Space, notification, Button, Input, Card,
-  Form, Row, Col, Divider, Select
+  useState,
+  useEffect,
+} from "react"
+import {
+  Typography,
+  Space,
+  notification,
+  Button,
+  Input,
+  Card,
+  Form,
+  Row,
+  Col,
+  Divider,
+  Select
 } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
-import UpdateTestResultModal from '../../components/lab-technician/UpdateTestResultModal.jsx';
+import UpdateTestOrderModal from '../../components/lab-technician/UpdateTestOrderModal.jsx';
 import dayjs from 'dayjs';
 import { createNotification } from "../../services/notification.service";
+import { fetchHealthRecordByScheduleIdAPI, fetchTestOrderByHealthRecordIdAPI, updateHealthRecordAPI } from "../../services/health-record.service.js";
+import { updateTestOrderAPI } from "../../services/testOrder.service.js";
+import { getAllTestTypes } from "../../services/testtype.service.js";
 
 
 const PatientDetail = () => {
-  const [dataUpdate, setDataUpdate] = useState({});
-  const [healthRecordData, setHealthRecordData] = useState({});
-  const [testResultData, setTestResultData] = useState([]);
-  const [isUpdateTestResultModalOpen, setIsUpdateTestResultModalOpen] = useState(false);
+  const [dataUpdate, setDataUpdate] = useState({})
+  const [healthRecordData, setHealthRecordData] = useState({})
+  const [testOrderData, setTestOrderData] = useState([])
+  const [isUpdateTestOrderModalOpen, setIsUpdateTestOrderModalOpen] = useState(false)
+  const [testTypes, setTestTypes] = useState([]);
 
-  const { id } = useParams();
-  const { Title } = Typography;
-  const navigate = useNavigate();
+  const location = useLocation();
+  const fromTab = location.state?.fromTab;
+  const { id } = useParams()
+  const { Title } = Typography
+  const navigate = useNavigate()
 
   useEffect(() => {
     loadData();
@@ -35,18 +51,22 @@ const PatientDetail = () => {
       const healthRecord = (await fetchHealthRecordByScheduleIdAPI(id)).data;
       if (healthRecord) {
         setHealthRecordData(healthRecord);
-        const testResultRes = await fetchTestResultByHealthRecordIdAPI(healthRecord.id);
-        setTestResultData(testResultRes.data || []);
+        const testOrderRes = await fetchTestOrderByHealthRecordIdAPI(healthRecord.id);
+        setTestOrderData(testOrderRes.data || []);
       }
+
+      const testTypeList = await getAllTestTypes();
+      setTestTypes(testTypeList);
     } catch (error) {
       console.error("Lỗi khi tải dữ liệu:", error);
     }
   };
 
+
   const handleInputChange = (event) => {
-    const { name, value } = event.target;
-    setHealthRecordData((prev) => ({ ...prev, [name]: value }));
-  };
+    const { name, value } = event.target
+    setHealthRecordData((prev) => ({ ...prev, [name]: value }))
+  }
 
   const handleUpdateHealthRecord = async () => {
     try {
@@ -59,12 +79,12 @@ const PatientDetail = () => {
         treatmentStatus: healthRecordData.treatmentStatus,
         scheduleId: healthRecordData.schedule?.id,
         regimenId: healthRecordData.regimen?.id,
-      };
+      }
 
-      const response = await updateHealthRecordAPI(healthRecordData.id, updatePayload);
+      const response = await updateHealthRecordAPI(healthRecordData.id, updatePayload)
 
-      for (const test of testResultData) {
-        await updateTestResultAPI(
+      for (const test of testOrderData) {
+        await updateTestOrderAPI(
           test.id,
           test.type,
           test.result,
@@ -72,7 +92,7 @@ const PatientDetail = () => {
           test.note,
           test.expectedResultTime,
           test.actualResultTime
-        );
+        )
       }
 
       if (response.data) {
@@ -81,59 +101,67 @@ const PatientDetail = () => {
           showProgress: true,
           pauseOnHover: true,
           description: 'Cập nhật thông tin sức khỏe thành công!'
-        });
+        })
 
-        // Kiểm tra đã điền đầy đủ kết quả xét nghiệm chưa
-        const allResultsFilled = testResultData.every(
+        const allResultsFilled = testOrderData.every(
           (test) => test.result !== null && test.result !== ''
-        );
+        )
 
-        // Nếu hợp lệ thì gửi thông báo cho bác sĩ và bệnh nhân
         if (
-          (healthRecordData.hivStatus === "Dương tính" || healthRecordData.hivStatus === "Âm tính") &&
+          (healthRecordData.hivStatus === "Dương tính"
+            || healthRecordData.hivStatus === "Âm tính"
+            || healthRecordData.hivStatus === "Chưa xác định") &&
           allResultsFilled
         ) {
           const doctorId = healthRecordData.schedule?.doctor?.id;
           const patient = healthRecordData.schedule?.patient;
-        
+
           if (doctorId && patient?.id && patient?.fullName) {
             const createdAt = dayjs().format('YYYY-MM-DDTHH:mm:ss');
-        
-            // Gửi cho bác sĩ
+
             await createNotification({
               title: "Thông báo kết quả xét nghiệm",
               message: `Đã có kết quả xét nghiệm của bệnh nhân ${patient.fullName}`,
               createdAt,
               userId: doctorId,
             });
-        
-            // Gửi cho bệnh nhân
+
             await createNotification({
               title: "Kết quả xét nghiệm đã sẵn sàng",
               message: "Bạn có thể xem kết quả xét nghiệm mới trong hồ sơ sức khỏe.",
               createdAt,
               userId: patient.id,
-            });
+            })
           }
         }
-        
 
-        await loadData();
+
+        await loadData()
       }
     } catch (error) {
-      console.error("Lỗi khi cập nhật:", error);
-      alert("Cập nhật thất bại.");
+      console.error("Lỗi khi cập nhật:", error)
+      alert("Cập nhật thất bại.")
     }
-  };
+  }
 
   return (
     <div style={{ margin: '0 10vw' }}>
       <Space direction="vertical" style={{ width: "100%" }}>
-        <Button onClick={() => navigate(-1)}>← Quay lại</Button>
+        <Button onClick={() => {
+          if (fromTab) {
+            navigate(`/lab-technician?tab=${fromTab}`);
+          } else {
+            navigate(-1);
+          }
+        }}>
+          ← Quay lại
+        </Button>
         <Title level={3} style={{ textAlign: "center", width: "100%" }}>
           Chi tiết ca khám
         </Title>
       </Space>
+
+      <Button type="primary" onClick={handleUpdateHealthRecord}>Cập nhật hồ sơ bệnh nhân</Button>
 
       <Card title="Thông tin sức khỏe" style={{ marginTop: '5vh' }}>
         <Form layout="vertical">
@@ -157,37 +185,45 @@ const PatientDetail = () => {
               </Form.Item>
             </Col>
           </Row>
-          <Button type="primary" onClick={handleUpdateHealthRecord}>Cập nhật hồ sơ bệnh nhân</Button>
         </Form>
       </Card>
 
       <Divider orientation="center" style={{ marginTop: '10vh' }}>Kết quả xét nghiệm</Divider>
 
-      {testResultData.map((test) => (
+      {testOrderData.map((test) => (
         <Card key={test.id} style={{ marginTop: 16 }}>
           <Row gutter="5vw">
-            <Col span={8}>
-              <p><strong>Loại:</strong> {test.type}</p>
+            <Col span={6}>
+              <p><strong>Tên:</strong> {test.name}</p>
             </Col>
-            <Col span={8}>
+            <Col span={6}>
+              <p><strong>Loại:</strong> {test.type?.testTypeName}</p>
+            </Col>
+            <Col span={6}>
               <p><strong>Kết quả:</strong> {test.result} {test.unit}</p>
             </Col>
-            <Col span={8}>
+            <Col span={6}>
+              <p><strong>Trạng thái:</strong> {test.paymentStatus}</p>
+            </Col>
+          </Row>
+
+          <Row gutter="5vw">
+            <Col span={6}>
               <p><strong>Ghi chú:</strong> {test.note}</p>
             </Col>
-            <Col span={8}>
+            <Col span={6}>
               <p><strong>Thời gian dự kiến:</strong> {formatDate(test.expectedResultTime)}</p>
             </Col>
-            <Col span={8}>
+            <Col span={6}>
               <p><strong>Thời gian nhận kết quả:</strong> {formatDate(test.actualResultTime)}</p>
             </Col>
-            <Col span={8}>
+            <Col span={6}>
               <Space>
                 <EditOutlined
                   style={{ color: 'orange', cursor: 'pointer' }}
                   onClick={() => {
-                    setDataUpdate(test);
-                    setIsUpdateTestResultModalOpen(true);
+                    setDataUpdate(test)
+                    setIsUpdateTestOrderModalOpen(true)
                   }}
                 />
               </Space>
@@ -196,32 +232,36 @@ const PatientDetail = () => {
         </Card>
       ))}
 
-      <UpdateTestResultModal
-        isUpdateTestResultModalOpen={isUpdateTestResultModalOpen}
-        setIsUpdateTestResultModalOpen={setIsUpdateTestResultModalOpen}
+      <UpdateTestOrderModal
+        isUpdateTestOrderModalOpen={isUpdateTestOrderModalOpen}
+        setIsUpdateTestOrderModalOpen={setIsUpdateTestOrderModalOpen}
         dataUpdate={dataUpdate}
+        testTypes={testTypes}
         onPreviewUpdate={(updatedTest) => {
-          setTestResultData((prev) =>
-            prev.map((test) => test.id === updatedTest.id ? updatedTest : test)
-          );
+          setTestOrderData((prev) =>
+            prev.map((test) =>
+              test.id === updatedTest.id
+                ? { ...test, ...updatedTest }
+                : test
+            )
+          )
         }}
       />
     </div>
-  );
-};
+  )
+}
 
 // Format datetime
 const formatDate = (value) => {
   return value && !isNaN(new Date(value))
     ? new Intl.DateTimeFormat('vi-VN', {
-        hour: '2-digit',
-        minute: '2-digit',
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour12: false,
-      }).format(new Date(value))
+      hour: '2-digit',
+      minute: '2-digit',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour12: false,
+    }).format(new Date(value))
     : '';
 };
-
 export default PatientDetail;

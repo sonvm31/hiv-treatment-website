@@ -1,0 +1,229 @@
+.staff-report {
+    padding: 20px 0;
+}
+
+.loading-container {
+    width: 100%;
+    min-height: 400px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.loading-content {
+    padding: 30px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.8);
+    min-width: 300px;
+}
+
+.report-header {
+    margin-bottom: 24px;
+}
+
+.report-header .ant-typography {
+    margin-bottom: 0;
+}
+
+.statistics-row {
+    margin-bottom: 24px;
+}
+
+.statistic-card {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s;
+    cursor: pointer;
+}
+
+.statistic-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.statistic-footer {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed #f0f0f0;
+}
+
+.staff-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.chart-card {
+    margin-bottom: 24px;
+    border-radius: 8px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.chart-card .ant-card-head {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 0 16px;
+}
+
+.chart-card .ant-card-head-title {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.chart-card .ant-card-body {
+    padding: 24px;
+}
+
+.table-card {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    margin-bottom: 24px;
+}
+
+.table-card .ant-card-head {
+    border-bottom: 1px solid #f0f0f0;
+    padding: 16px 24px;
+}
+
+.table-card .ant-card-head-title {
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.table-card .ant-table-thead > tr > th {
+    background: #fafafa;
+    font-weight: 600;
+}
+
+.table-card .ant-table-tbody > tr:hover > td {
+    background: #f5f5f5;
+}
+
+.filters-container {
+    margin-bottom: 24px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.empty-chart {
+    height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: rgba(0, 0, 0, 0.45);
+    font-size: 16px;
+    background-color: #fafafa;
+    border-radius: 4px;
+}
+
+/* Định dạng cho in ấn */
+@media print {
+    .ant-card {
+        box-shadow: none !important;
+        border: 1px solid #ddd !important;
+    }
+    
+    .ant-btn,
+    .filters-container,
+    .ant-pagination,
+    .ant-table-column-sorter,
+    .staff-tabs {
+        display: none !important;
+    }
+    
+    .ant-card-head {
+        border-bottom: 1px solid #000 !important;
+        padding: 10px 0 !important;
+    }
+    
+    .ant-card-body {
+        padding: 10px 0 !important;
+    }
+    
+    .ant-table {
+        font-size: 10pt !important;
+    }
+    
+    .ant-table-thead > tr > th {
+        background-color: #f0f0f0 !important;
+        color: #000 !important;
+        border: 1px solid #000 !important;
+    }
+    
+    .ant-table-tbody > tr > td {
+        border: 1px solid #000 !important;
+    }
+    
+    .ant-statistic-title {
+        font-size: 12pt !important;
+        font-weight: bold !important;
+    }
+    
+    .ant-statistic-content {
+        font-size: 14pt !important;
+    }
+    
+    /* Thêm header và footer khi in */
+    @page {
+        margin: 1cm;
+    }
+    
+    body::before {
+        content: "Báo cáo nhân sự - HIV Treatment Center";
+        display: block;
+        text-align: center;
+        font-size: 14pt;
+        font-weight: bold;
+        margin-bottom: 1cm;
+    }
+    
+    body::after {
+        content: "Trang " counter(page);
+        display: block;
+        text-align: center;
+        font-size: 10pt;
+        margin-top: 1cm;
+    }
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+    .report-header .ant-space {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .report-header .ant-space-item {
+        margin-right: 0 !important;
+        margin-bottom: 16px;
+    }
+
+    .ant-table {
+        overflow-x: auto;
+    }
+
+    .statistics-row .ant-card {
+        margin-bottom: 16px;
+    }
+
+    .chart-card,
+    .table-card {
+        margin-bottom: 16px;
+    }
+
+    .staff-report {
+        padding: 0 8px;
+    }
+
+    .statistics-row {
+        margin-bottom: 16px;
+    }
+
+    .statistics-row .ant-statistic-title {
+        font-size: 14px;
+    }
+
+    .statistics-row .ant-statistic-content {
+        font-size: 20px;
+    }
+} 

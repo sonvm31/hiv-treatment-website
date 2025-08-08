@@ -1,17 +1,45 @@
-import React, { useState, useEffect, useContext } from 'react';
 import {
-  Card, Table, Tag, Modal, Descriptions, Divider, Spin, message,
-  Input, Select, Button, Space, Row, Col, Typography
+  useState,
+  useEffect,
+  useContext
+} from 'react';
+import {
+  Card,
+  Table,
+  Tag,
+  Modal,
+  Descriptions,
+  Divider,
+  Spin,
+  message,
+  Input,
+  Select,
+  Button,
+  Space,
+  Row,
+  Col,
+  Typography
 } from 'antd';
 import {
-  CalendarOutlined, ClockCircleOutlined, UserOutlined,
-  FileTextOutlined, SearchOutlined, MedicineBoxOutlined,
-  FileDoneOutlined
+  CalendarOutlined,
+  ClockCircleOutlined,
+  UserOutlined,
+  FileTextOutlined,
+  MedicineBoxOutlined,
+  FileDoneOutlined,
+  ScheduleOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { getSchedulesByPatientAPI, fetchTestResultByHealthRecordIdAPI } from '../../services/api.service';
-import { healthRecordService } from '../../services/health-record.service';
-import { AuthContext } from '../../components/context/AuthContext';
+import {
+  fetchTestOrderByHealthRecordIdAPI,
+  healthRecordService
+} from '../../services/health-record.service';
+import {
+  AuthContext
+} from '../../components/context/AuthContext';
+import {
+  getSchedulesByPatientAPI
+} from '../../services/schedule.service';
 
 const { Search } = Input;
 const { Option } = Select;
@@ -24,7 +52,7 @@ export default function PatientAppointmentHistory() {
   const [searchDoctor, setSearchDoctor] = useState('');
   const [selectedType, setSelectedType] = useState('all');
   const [healthRecord, setHealthRecord] = useState(null);
-  const [testResults, setTestResults] = useState([]);
+  const [testOrders, setTestOrders] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [loadingModal, setLoadingModal] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
@@ -41,7 +69,7 @@ export default function PatientAppointmentHistory() {
           return dateB - dateA;
         });
         setRecords(sorted);
-      } catch (err) {
+      } catch {
         message.error('Không thể tải lịch sử khám.');
       } finally {
         setLoading(false);
@@ -56,12 +84,12 @@ export default function PatientAppointmentHistory() {
     try {
       const data = await healthRecordService.getHealthRecordByScheduleId(scheduleId);
       setHealthRecord(data);
-      const testRes = data?.id ? await fetchTestResultByHealthRecordIdAPI(data.id) : { data: [] };
-      setTestResults(testRes.data || []);
-    } catch (err) {
+      const testRes = data?.id ? await fetchTestOrderByHealthRecordIdAPI(data.id) : { data: [] };
+      setTestOrders(testRes.data || []);
+    } catch {
       message.error('Không thể tải hồ sơ khám.');
       setHealthRecord(null);
-      setTestResults([]);
+      setTestOrders([]);
     } finally {
       setLoadingModal(false);
     }
@@ -70,7 +98,7 @@ export default function PatientAppointmentHistory() {
   const closeModal = () => {
     setShowModal(false);
     setHealthRecord(null);
-    setTestResults([]);
+    setTestOrders([]);
   };
 
   const filteredRecords = records.filter(r => {
@@ -89,28 +117,28 @@ export default function PatientAppointmentHistory() {
 
   const columns = [
     {
-      title: 'Loại lịch',
+      title: <><ScheduleOutlined /> Loại lịch</>,
       dataIndex: 'type',
       key: 'type',
       render: type => <Tag color={getTypeColor(type)}>{type}</Tag>,
     },
     {
-      title: 'Ngày',
+      title: <><CalendarOutlined /> Ngày</>,
       dataIndex: 'date',
       key: 'date',
-      render: d => <><CalendarOutlined /> {formatDate(d)}</>,
+      render: d => <> {formatDate(d)}</>,
     },
     {
-      title: 'Khung giờ',
+      title: <><ClockCircleOutlined /> Giờ</>,
       dataIndex: 'slot',
       key: 'slot',
-      render: s => <><ClockCircleOutlined /> {s?.slice(0, 5)}</>,
+      render: s => <> {s?.slice(0, 5)}</>,
     },
     {
-      title: 'Bác sĩ',
+      title: <><UserOutlined /> Bác sĩ</>,
       dataIndex: ['doctor', 'fullName'],
       key: 'doctor',
-      render: name => <><UserOutlined /> {name || 'Không rõ'}</>,
+      render: name => <> {name || 'Không rõ'}</>,
     },
     {
       title: '',
@@ -255,11 +283,11 @@ export default function PatientAppointmentHistory() {
             <Divider orientation="left">
               <FileTextOutlined /> <Text strong>Kết quả xét nghiệm</Text>
             </Divider>
-            {testResults.length === 0 ? (
+            {testOrders.length === 0 ? (
               <Text type="secondary">Chưa có kết quả.</Text>
             ) : (
-              testResults.map(test => (
-                <Card key={test.id} size="small" style={{ marginBottom: 12 }} type="inner" title={test.type}>
+              testOrders.map(test => (
+                <Card key={test.id} size="small" style={{ marginBottom: 12 }} type="inner" title={test.type?.testTypeName}>
                   <Row gutter={16}>
                     <Col span={12}><b>Kết quả:</b> {test.result} {test.unit}</Col>
                     <Col span={12}><b>Ghi chú:</b> {test.note || 'Không có'}</Col>

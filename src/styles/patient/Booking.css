@@ -1,0 +1,92 @@
+.booking-form-modern,
+.ant-form,
+.ant-card-body {
+    min-width: 260px;
+    width: 100%;
+}
+
+.slot-grid-modern {
+    width: 100%;
+    min-width: 320px;
+    justify-content: flex-start;
+}
+
+.payment-block-group {
+    display: flex;
+    gap: 20px;
+}
+
+.payment-block-option {
+    border: 1.5px solid #eee;
+    border-radius: 7px;
+    padding: 16px 18px 12px;
+    background: #f8fafc;
+    display: flex;
+    align-items: flex-start;
+    transition: border 0.2s, background 0.2s, box-shadow 0.2s;
+    font-size: 15px;
+}
+
+.payment-block-option:hover {
+    border: 1.5px solid #1677ff;
+    background: #e6f7ff;
+    box-shadow: 0 2px 8px #bae7ff66;
+}
+
+.payment-block-option .label {
+    font-weight: 600;
+}
+
+.payment-block-option .desc {
+    font-size: 13px;
+    color: #888;
+}
+
+.payment-block-option:has(input[type="radio"]:checked) {
+    border: 1.5px solid #1677ff;
+    background: #e6f7ff;
+    box-shadow: 0 2px 8px #bae7ff66;
+}
+
+
+@media (max-width: 991px) {
+    .ant-card {
+        margin-bottom: 18px;
+    }
+}
+
+@media (max-width: 600px) {
+    .slot-grid-modern {
+        gap: 6px 0;
+        justify-content: center;
+    }
+
+    .slot-grid-modern .ant-btn {
+        width: 95px !important;
+        margin: 3px !important;
+        font-size: 15px !important;
+    }
+
+    .ant-card {
+        padding: 4px;
+        border-radius: 12px !important;
+        box-shadow: 0 2px 8px rgba(44, 62, 80, 0.06) !important;
+    }
+
+    .ant-card-body {
+        padding: 12px !important;
+    }
+
+    .ant-row {
+        padding: 8px !important;
+    }
+}
+
+/* Dành cho màn hình siêu bé */
+@media (max-width: 420px) {
+    .slot-grid-modern .ant-btn {
+        width: 100% !important;
+        margin: 3px 0 !important;
+        min-width: 0;
+    }
+}

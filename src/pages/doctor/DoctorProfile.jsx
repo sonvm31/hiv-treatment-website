@@ -1,36 +1,57 @@
-import React, { useState, Suspense, useContext, useRef } from 'react';
-import { Card, Row, Col, Tabs, Skeleton, Avatar, Typography, Tooltip } from 'antd';
-import { MailOutlined, PhoneOutlined, CameraOutlined } from '@ant-design/icons';
-import DoctorPersonalProfile from '../../components/doctor/DoctorPersonalProfile';
-import DoctorStatistic from '../../components/doctor/DoctorStatistic';
-import doctorProfileImage from '../../assets/doctor.png';
-import { useOutletContext } from 'react-router-dom';
-import { AuthContext } from '../../components/context/AuthContext';
+import { 
+  useState, 
+  Suspense, 
+  useContext, 
+  useRef 
+} from 'react'
+import { 
+  Card, 
+  Row, 
+  Col, 
+  Tabs, 
+  Skeleton, 
+  Avatar, 
+  Typography, 
+  Tooltip, 
+  Button
+} from 'antd'
+import { 
+  MailOutlined, 
+  PhoneOutlined, 
+  CameraOutlined 
+} from '@ant-design/icons'
+import DoctorPersonalProfile from '../../components/doctor/DoctorPersonalProfile'
+import DoctorStatistic from '../../components/doctor/DoctorStatistic'
+import doctorProfileImage from '../../assets/doctor.png'
+import { 
+  AuthContext 
+} from '../../components/context/AuthContext'
+import { 
+  validateField 
+} from '../../utils/validate'
 
-const { Title, Text } = Typography;
-const { TabPane } = Tabs;
+const { Title, Text } = Typography
 
 const TabContentSkeleton = () => (
   <Skeleton active paragraph={{ rows: 6 }} />
-);
+)
 
 const DoctorProfile = () => {
-  const [activeTab, setActiveTab] = useState('personal-info');
-  const { user, setUser } = useContext(AuthContext);
-  const [hover, setHover] = useState(false);
-  const fileInputRef = useRef(null);
+  const [activeTab, setActiveTab] = useState('personal-info')
+  const { user, setUser } = useContext(AuthContext)
+  const [hover, setHover] = useState(false)
+  const fileInputRef = useRef(null)
 
-  // Đổi avatar
   const handleAvatarChange = (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
+    const file = event.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
     reader.onload = (e) => {
-      const base64String = e.target.result;
-      setUser({ ...user, avatar: base64String });
-    };
-    reader.readAsDataURL(file);
-  };
+      const base64String = e.target.result
+      setUser({ ...user, avatar: base64String })
+    }
+    reader.readAsDataURL(file)
+  }
 
   return (
     <div style={{ padding: '24px' }}>
@@ -49,22 +70,19 @@ const DoctorProfile = () => {
                   style={{ border: '2px solid #1890ff', cursor: 'pointer', transition: 'box-shadow 0.2s' }}
                   onClick={() => fileInputRef.current.click()}
                 />
-                {hover && (
-                  <CameraOutlined
-                    style={{
-                      position: 'absolute',
-                      bottom: 8,
-                      right: 8,
-                      fontSize: 28,
-                      color: '#1890ff',
-                      background: '#fff',
-                      borderRadius: '50%',
-                      boxShadow: '0 2px 8px #0002',
-                      padding: 4,
-                      pointerEvents: 'none',
-                    }}
-                  />
+                {user?.avatar && (
+                  <div style={{ marginTop: 8, textAlign: 'center' }}>
+                    <Button
+                      danger
+                      type="link"
+                      onClick={() => setUser({ ...user, avatar: null })}
+                      style={{ fontSize: 12 }}
+                    >
+                      Xóa ảnh
+                    </Button>
+                  </div>
                 )}
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -103,7 +121,7 @@ const DoctorProfile = () => {
               label: 'Thông tin cá nhân',
               children: (
                 <Suspense fallback={<TabContentSkeleton />}>
-                  <DoctorPersonalProfile />
+                  <DoctorPersonalProfile validateField={validateField} />
                 </Suspense>
               )
             },
@@ -120,7 +138,6 @@ const DoctorProfile = () => {
         />
       </Card>
     </div>
-  );
-};
-
-export default DoctorProfile;
+  )
+}
+export default DoctorProfile

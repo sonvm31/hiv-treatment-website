@@ -1,16 +1,16 @@
-import React from 'react';
 import { Layout, Menu } from 'antd';
 import {
   BarChartOutlined,
   UserOutlined,
-  TeamOutlined,
-  CalendarOutlined,
+    CalendarOutlined,
   FileOutlined,
   SolutionOutlined,
-  IdcardOutlined
+  IdcardOutlined,
+  DollarOutlined,
+  MedicineBoxOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation } from 'react-router-dom';
-import './ManagerSidebar.css';
+import '../../../styles/manager/ManagerSidebar.css';
 
 const { Sider } = Layout;
 
@@ -20,14 +20,19 @@ const ManagerSidebar = () => {
 
   const menuItems = [
     {
-      key: '/manager/profile',
-      icon: <IdcardOutlined />,
-      label: 'Hồ sơ cá nhân',
+      key: '/manager',
+      icon: <CalendarOutlined />,
+      label: 'Quản lí lịch',
     },
     {
       key: '/manager/dashboard',
       icon: <BarChartOutlined />,
       label: 'Thống kê',
+    },
+    {
+      key: '/manager/reports',
+      icon: <FileOutlined />,
+      label: 'Báo cáo',
     },
     {
       key: '/manager/doctors',
@@ -36,37 +41,25 @@ const ManagerSidebar = () => {
     },
     {
       key: '/manager/lab-technicians',
-      icon: <TeamOutlined />,
+      icon: <MedicineBoxOutlined />,
       label: 'Kĩ thuật viên',
     },
     {
-      key: '/manager/schedule',
-      icon: <CalendarOutlined />,
-      label: 'Quản lí lịch',
-    },
-    {
-      key: '/manager/reports',
-      icon: <FileOutlined />,
-      label: 'Báo cáo',
+      key: '/manager/cashier',
+      icon: <DollarOutlined  />,
+      label: 'Thu ngân',
     },
     {
       key: '/manager/default-regimen',
       icon: <SolutionOutlined />,
       label: 'Phác đồ mặc định',
     },
-
+    {
+      key: '/manager/profile',
+      icon: <IdcardOutlined />,
+      label: 'Hồ sơ cá nhân',
+    },
   ];
-
-  // Custom styles cho menu items
-  const getMenuItemStyle = (isSelected) => {
-    return {
-      backgroundColor: isSelected ? '#f0f7ff' : 'transparent', // Màu nền nhẹ khi được chọn
-      color: isSelected ? '#2056df' : '#555', // Màu chữ xanh khi được chọn, xám khi không
-      margin: '4px 0',
-      borderRadius: '4px',
-      fontWeight: isSelected ? '500' : 'normal',
-    };
-  };
 
   return (
     <Sider
@@ -78,15 +71,7 @@ const ManagerSidebar = () => {
           mode="inline"
           selectedKeys={[location.pathname]}
           className="sidebar-menu"
-          items={menuItems.map(item => ({
-            ...item,
-            style: getMenuItemStyle(location.pathname === item.key),
-            icon: React.cloneElement(item.icon, {
-              style: {
-                color: location.pathname === item.key ? '#04cde4' : '#555'
-              }
-            }),
-          }))}
+          items={menuItems}
           onClick={({ key }) => navigate(key)}
         />
       </div>
